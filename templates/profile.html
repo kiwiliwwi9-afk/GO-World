@@ -30,6 +30,13 @@
             <div class="profile-info">
                 <h2>{{ user.username }}</h2>
                 <p class="bio">{{ user.bio or 'Пользователь GO World' }}</p>
+                
+                {% if user.is_online %}
+                    <p style="color: #00ff00; font-size: 14px;">● Онлайн</p>
+                {% else %}
+                    <p style="color: #888; font-size: 14px;">● Был(а) {{ user.last_seen.strftime('%d.%m.%Y %H:%M') if user.last_seen else 'давно' }}</p>
+                {% endif %}
+                
                 <div class="stats">
                     <span>📝 {{ user.get_posts()|length }} постов</span>
                     <span>👥 {{ followers_count }} подписчиков</span>
@@ -44,6 +51,7 @@
                     <a href="/messages/{{ user.username }}" class="btn btn-outline">💬 Написать</a>
                 {% else %}
                     <a href="/profile/edit" class="btn btn-outline">Редактировать профиль</a>
+                    <a href="/change_password" class="btn btn-outline">🔑 Сменить пароль</a>
                 {% endif %}
             </div>
         </div>
@@ -59,6 +67,7 @@
                 <div class="post-footer">
                     <small>{{ post.created_at.strftime('%d.%m.%Y %H:%M') }}</small>
                     <span>❤️ {{ post.likes }}</span>
+                    <span>👁️ {{ post.views }}</span>
                 </div>
             </div>
             {% else %}
