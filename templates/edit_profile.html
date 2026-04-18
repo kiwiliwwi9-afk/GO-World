@@ -2,15 +2,15 @@
 <html>
 <head>
     <title>Редактировать профиль — GO World</title>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="/static/style.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
 </head>
 <body>
     <nav class="navbar">
         <div class="nav-brand">🌍 GO World</div>
         <div class="nav-links">
             <a href="/feed">Лента</a>
+            <a href="/search">🔍 Найти</a>
             <a href="/profile/{{ current_user.username }}">Профиль</a>
             <a href="/logout">Выйти</a>
         </div>
@@ -25,8 +25,9 @@
             {% endfor %}
         {% endwith %}
         
-        <form method="POST">
-            <textarea name="bio" placeholder="О себе" rows="4" style="width:100%; margin-bottom:20px; padding:10px;">{{ current_user.bio }}</textarea>
+        <form method="POST" enctype="multipart/form-data">
+            <textarea name="bio" placeholder="О себе" rows="4" style="width:100%; margin-bottom:20px; padding:10px; border-radius:10px; border:none;">{{ current_user.bio }}</textarea>
+            <input type="file" name="avatar" accept="image/*" style="margin-bottom:20px;">
             <button type="submit" class="btn">Сохранить</button>
         </form>
     </div>
