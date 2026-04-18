@@ -291,7 +291,14 @@ def profile(username):
     is_following = Follow.query.filter_by(follower_id=current_user.id, followed_id=user.id).first() is not None
     followers_count = Follow.query.filter_by(followed_id=user.id).count()
     following_count = Follow.query.filter_by(follower_id=user.id).count()
-    return render_template('profile.html', user=user, is_following=is_following, followers_count=followers_count, following_count=following_count)
+    posts = Post.query.filter_by(user_id=user.id).order_by(Post.created_at.desc()).all()
+    
+    return render_template('profile.html', 
+                         user=user, 
+                         is_following=is_following, 
+                         followers_count=followers_count, 
+                         following_count=following_count,
+                         posts=posts)
 
 @app.route('/follow/<username>')
 @login_required
