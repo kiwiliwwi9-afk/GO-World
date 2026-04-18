@@ -50,7 +50,10 @@
                     <img src="{{ post.image }}" alt="post image" style="max-width:100%; border-radius:10px; margin-top:10px;">
                 {% endif %}
                 <div class="post-actions" style="display: flex; justify-content: space-between; align-items: center; margin-top: 10px;">
-                    <a href="/like/{{ post.id }}" class="like-btn">❤️ {{ post.likes }}</a>
+                    <div style="display: flex; gap: 15px;">
+                        <a href="/like/{{ post.id }}" class="like-btn">❤️ {{ post.likes }}</a>
+                        <span style="color: #888;">👁️ {{ post.views }}</span>
+                    </div>
                     {% if post.is_author %}
                     <div style="display: flex; gap: 10px;">
                         <a href="/edit_post/{{ post.id }}" style="color: #ffd700; text-decoration: none;" title="Редактировать">✏️</a>
@@ -84,6 +87,9 @@
             </div>
         </div>
     </div>
+
+    <!-- Кнопка наверх -->
+    <a href="#" id="toTop" style="position: fixed; bottom: 20px; right: 20px; background: #8a2be2; color: white; width: 40px; height: 40px; border-radius: 50%; display: none; align-items: center; justify-content: center; text-decoration: none; font-size: 24px; z-index: 999;">↑</a>
 
     <script>
         const toggle = document.getElementById('margo-toggle');
@@ -147,6 +153,16 @@
         input.addEventListener('keypress', (e) => {
             if (e.key === 'Enter' && input.value.trim()) {
                 askMargo(input.value.trim());
+            }
+        });
+
+        // Кнопка наверх
+        const toTop = document.getElementById('toTop');
+        window.addEventListener('scroll', () => {
+            if (window.scrollY > 300) {
+                toTop.style.display = 'flex';
+            } else {
+                toTop.style.display = 'none';
             }
         });
     </script>
