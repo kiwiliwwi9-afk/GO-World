@@ -8,11 +8,12 @@
     <nav class="navbar">
         <div class="nav-brand">🌍 GO World</div>
         <div class="nav-links">
-            <span>Привет, {{ current_user.username }}!</span>
-            <a href="/feed">Лента</a>
-            <a href="/profile/{{ current_user.username }}">Профиль</a>
-            <a href="/logout">Выйти</a>
-        </div>
+    <span>Привет, {{ current_user.username }}!</span>
+    <a href="/feed">Лента</a>
+    <a href="/profile/{{ current_user.username }}">Профиль</a>
+    <a href="/search">Поиск</a>
+    <a href="/logout">Выйти</a>
+</div>
     </nav>
     
     <div class="feed-container">
