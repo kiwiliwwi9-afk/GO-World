@@ -2,23 +2,42 @@
 <html>
 <head>
     <title>Вход — GO World</title>
-    <link rel="stylesheet" href="/static/style.css">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body {
+            font-family: Arial;
+            text-align: center;
+            padding: 50px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+        }
+        input {
+            padding: 10px;
+            margin: 10px;
+            border-radius: 10px;
+            border: none;
+        }
+        .btn {
+            background: white;
+            color: #667eea;
+            padding: 10px 30px;
+            border-radius: 30px;
+            text-decoration: none;
+            border: none;
+        }
+    </style>
 </head>
 <body>
-    <div class="container">
-        <h2>Вход в GO World</h2>
-        {% with messages = get_flashed_messages(with_categories=true) %}
-            {% for category, message in messages %}
-                <div class="alert alert-{{ category }}">{{ message }}</div>
-            {% endfor %}
-        {% endwith %}
-        <form method="POST">
-            <input type="text" name="username" placeholder="Имя пользователя" required>
-            <input type="password" name="password" placeholder="Пароль" required>
-            <button type="submit" class="btn">Войти</button>
-        </form>
-        <p>Нет аккаунта? <a href="/register">Зарегистрироваться</a></p>
-    </div>
+    <h2>Вход в GO World</h2>
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% for category, message in messages %}
+            <p style="color:yellow">{{ message }}</p>
+        {% endfor %}
+    {% endwith %}
+    <form method="POST">
+        <input type="text" name="username" placeholder="Имя пользователя" required><br>
+        <input type="password" name="password" placeholder="Пароль" required><br>
+        <button type="submit" class="btn">Войти</button>
+    </form>
+    <p>Нет аккаунта? <a href="/register" style="color:white">Зарегистрироваться</a></p>
 </body>
 </html>
