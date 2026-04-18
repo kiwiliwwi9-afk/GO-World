@@ -19,22 +19,20 @@
     <div class="container">
         <h2>🔍 Найти людей</h2>
         <form method="GET">
-            <input type="text" name="q" placeholder="Имя пользователя..." value="{{ query }}" style="width:100%; padding:12px; margin-bottom:20px; border-radius:10px; border:none;">
+            <input type="text" name="q" placeholder="Имя пользователя..." value="{{ query }}">
             <button type="submit" class="btn">Искать</button>
         </form>
         
         {% if users %}
-            <div class="users-list">
-                {% for user in users %}
-                <div class="post" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
-                    <div>
-                        <strong>{{ user.username }}</strong>
-                        <p style="font-size:12px; opacity:0.7; margin-top:5px;">{{ user.bio[:50] or 'Нет описания' }}</p>
-                    </div>
-                    <a href="/profile/{{ user.username }}" class="btn" style="padding:5px 15px;">Перейти</a>
+            {% for user in users %}
+            <div class="post" style="display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <strong>{{ user.username }}</strong>
+                    <p style="font-size:12px;">{{ user.bio[:50] or 'Нет описания' }}</p>
                 </div>
-                {% endfor %}
+                <a href="/profile/{{ user.username }}" class="btn" style="padding:5px 15px;">Перейти</a>
             </div>
+            {% endfor %}
         {% elif query %}
             <p>Никого не найдено</p>
         {% else %}
