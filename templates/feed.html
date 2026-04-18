@@ -12,15 +12,7 @@
             <span>Привет, {{ current_user.username }}!</span>
             <a href="/feed">Лента</a>
             <a href="/profile/{{ current_user.username }}">Профиль</a>
-            <a href="/messages">💬 Сообщения</a>
             <a href="/search">🔍 Найти</a>
-            <a href="/notifications" style="position: relative;">
-                🔔
-                {% set unread = get_unread_count() %}
-                {% if unread > 0 %}
-                    <span style="position: absolute; top: -8px; right: -12px; background: red; color: white; font-size: 10px; border-radius: 50%; padding: 2px 6px;">{{ unread }}</span>
-                {% endif %}
-            </a>
             <a href="/logout">Выйти</a>
         </div>
     </nav>
@@ -52,21 +44,43 @@
                         {% endif %}
                     {% endif %}
                 </div>
+                
                 <div class="post-content">{{ post.content }}</div>
+                
                 {% if post.image %}
                     <img src="{{ post.image }}" alt="post image" style="max-width:100%; border-radius:10px; margin-top:10px;">
                 {% endif %}
-                <div class="post-actions" style="display: flex; justify-content: space-between; align-items: center; margin-top: 10px;">
-                    <div style="display: flex; gap: 15px;">
-                        <a href="/like/{{ post.id }}" class="like-btn">❤️ {{ post.likes }}</a>
-                        <span style="color: #888;">👁️ {{ post.views }}</span>
-                    </div>
+                
+                <div class="post-actions" style="display: flex; justify-content: space-between; align-items: center; margin-top: 15px;">
+                    <a href="/like/{{ post.id }}" class="like-btn">❤️ {{ post.likes }}</a>
                     {% if post.is_author %}
                     <div style="display: flex; gap: 10px;">
-                        <a href="/edit_post/{{ post.id }}" style="color: #ffd700; text-decoration: none;" title="Редактировать">✏️</a>
-                        <a href="/delete_post/{{ post.id }}" style="color: #ff6b6b; text-decoration: none;" onclick="return confirm('Удалить пост?')" title="Удалить">🗑️</a>
+                        <a href="/edit_post/{{ post.id }}" style="color: #ffd700; text-decoration: none;">✏️</a>
+                        <a href="/delete_post/{{ post.id }}" style="color: #ff6b6b; text-decoration: none;" onclick="return confirm('Удалить пост?')">🗑️</a>
                     </div>
                     {% endif %}
+                </div>
+                
+                <!-- ===== КОММЕНТАРИИ ===== -->
+                <div class="comments" style="margin-top: 15px;">
+                    {% for comment in post.comments %}
+                    <div style="background: rgba(255,255,255,0.05); border-radius: 10px; padding: 8px 12px; margin-bottom: 8px;">
+                        <div style="display: flex; justify-content: space-between;">
+                            <strong style="font-size: 12px;">{{ comment.author.username }}</strong>
+                            {% if comment.user_id == current_user.id %}
+                                <a href="/delete_comment/{{ comment.id }}" style="color: #ff6b6b; font-size: 10px; text-decoration: none;" onclick="return confirm('Удалить комментарий?')">🗑️</a>
+                            {% endif %}
+                        </div>
+                        <div style="font-size: 13px; margin-top: 4px;">{{ comment.content }}</div>
+                        <div style="font-size: 10px; opacity: 0.6; margin-top: 4px;">{{ comment.created_at.strftime('%d.%m.%Y %H:%M') }}</div>
+                    </div>
+                    {% endfor %}
+                    
+                    <!-- Форма добавления комментария -->
+                    <form method="POST" action="/comment/{{ post.id }}" style="margin-top: 10px; display: flex; gap: 8px;">
+                        <input type="text" name="content" placeholder="Написать комментарий..." style="flex: 1; padding: 8px; border-radius: 20px; border: none; outline: none;">
+                        <button type="submit" style="background: #8a2be2; border: none; border-radius: 20px; padding: 8px 16px; color: white; cursor: pointer;">→</button>
+                    </form>
                 </div>
             </div>
             {% else %}
@@ -94,9 +108,6 @@
             </div>
         </div>
     </div>
-
-    <!-- Кнопка наверх -->
-    <a href="#" id="toTop" style="position: fixed; bottom: 20px; right: 20px; background: #8a2be2; color: white; width: 40px; height: 40px; border-radius: 50%; display: none; align-items: center; justify-content: center; text-decoration: none; font-size: 24px; z-index: 999;">↑</a>
 
     <script>
         const toggle = document.getElementById('margo-toggle');
@@ -160,15 +171,6 @@
         input.addEventListener('keypress', (e) => {
             if (e.key === 'Enter' && input.value.trim()) {
                 askMargo(input.value.trim());
-            }
-        });
-
-        const toTop = document.getElementById('toTop');
-        window.addEventListener('scroll', () => {
-            if (window.scrollY > 300) {
-                toTop.style.display = 'flex';
-            } else {
-                toTop.style.display = 'none';
             }
         });
     </script>
