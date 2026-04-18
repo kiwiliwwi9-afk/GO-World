@@ -9,9 +9,11 @@
     <nav class="navbar">
         <div class="nav-brand">🌍 GO World</div>
         <div class="nav-links">
+            <span>Привет, {{ current_user.username }}!</span>
             <a href="/feed">Лента</a>
-            <a href="/search">🔍 Найти</a>
             <a href="/profile/{{ current_user.username }}">Профиль</a>
+            <a href="/messages">💬 Сообщения</a>
+            <a href="/search">🔍 Найти</a>
             <a href="/logout">Выйти</a>
         </div>
     </nav>
@@ -19,8 +21,8 @@
     <div class="profile-container">
         <div class="profile-header">
             <div class="avatar">
-                {% if user.avatar %}
-                    <img src="{{ user.avatar }}" alt="avatar" style="width:80px; height:80px; border-radius:50%; object-fit:cover;">
+                {% if user.avatar and user.avatar != '/static/default-avatar.png' %}
+                    <img src="{{ user.avatar }}" alt="avatar">
                 {% else %}
                     👤
                 {% endif %}
@@ -29,7 +31,7 @@
                 <h2>{{ user.username }}</h2>
                 <p class="bio">{{ user.bio or 'Пользователь GO World' }}</p>
                 <div class="stats">
-                    <span>📝 {{ user.posts|length }} постов</span>
+                    <span>📝 {{ user.get_posts()|length }} постов</span>
                     <span>👥 {{ followers_count }} подписчиков</span>
                     <span>👣 {{ following_count }} подписок</span>
                 </div>
@@ -39,6 +41,7 @@
                     {% else %}
                         <a href="/follow/{{ user.username }}?next=profile" class="btn">Подписаться</a>
                     {% endif %}
+                    <a href="/messages/{{ user.username }}" class="btn btn-outline">💬 Написать</a>
                 {% else %}
                     <a href="/profile/edit" class="btn btn-outline">Редактировать профиль</a>
                 {% endif %}
@@ -47,7 +50,7 @@
         
         <div class="user-posts">
             <h3>Посты {{ user.username }}</h3>
-            {% for post in user.posts %}
+            {% for post in user.get_posts() %}
             <div class="post">
                 <div class="post-content">{{ post.content }}</div>
                 {% if post.image %}
