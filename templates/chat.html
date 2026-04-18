@@ -47,7 +47,13 @@
     </nav>
     
     <div class="container">
-        <h2>💬 Чат с {{ other.username }}</h2>
+        <h2>💬 Чат с {{ other.username }}
+            {% if other.is_online %}
+                <span style="color: #00ff00; font-size: 14px;">● Онлайн</span>
+            {% else %}
+                <span style="color: #888; font-size: 12px;">был(а) {{ other.last_seen.strftime('%d.%m %H:%M') if other.last_seen else '' }}</span>
+            {% endif %}
+        </h2>
         
         <div class="messages-container">
             {% for msg in messages %}
