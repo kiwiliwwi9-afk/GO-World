@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Поиск — GO World</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-brand">🌍 GO World</div>
+        <div class="nav-links">
+            <a href="/feed">Лента</a>
+            <a href="/profile/{{ current_user.username }}">Профиль</a>
+            <a href="/search">Поиск</a>
+            <a href="/logout">Выйти</a>
+        </div>
+    </nav>
+    
+    <div class="container">
+        <h2>Поиск пользователей</h2>
+        <form method="GET" action="/search" class="search-form">
+            <input type="text" name="q" placeholder="Введите имя пользователя..." value="{{ query }}" class="search-input">
+            <button type="submit" class="btn">Найти</button>
+        </form>
+        
+        {% if query %}
+            <div class="search-results">
+                {% for user in users %}
+                    <div class="search-result">
+                        <a href="/profile/{{ user.username }}" class="profile-link">{{ user.username }}</a>
+                    </div>
+                {% else %}
+                    <p>Пользователь "{{ query }}" не найден</p>
+                {% endfor %}
+            </div>
+        {% endif %}
+    </div>
+</body>
+</html>
