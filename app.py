@@ -36,6 +36,8 @@ class User(UserMixin, db.Model):
     avatar = db.Column(db.String(200), default='/static/default-avatar.png')
     bio = db.Column(db.String(300), default='')
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    last_seen = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    is_online = db.Column(db.Boolean, default=False)
     
     def get_posts(self):
         return Post.query.filter_by(user_id=self.id).order_by(Post.created_at.desc()).all()
@@ -46,6 +48,7 @@ class Post(db.Model):
     content = db.Column(db.Text, nullable=False)
     image = db.Column(db.String(200), nullable=True)
     likes = db.Column(db.Integer, default=0)
+    views = db.Column(db.Integer, default=0)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
     author = db.relationship('User', backref=db.backref('posts', lazy=True))
@@ -78,6 +81,14 @@ def load_user(user_id):
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+# ========== ОНЛАЙН-СТАТУС ==========
+@app.before_request
+def update_last_seen():
+    if current_user.is_authenticated:
+        current_user.last_seen = datetime.utcnow()
+        current_user.is_online = True
+        db.session.commit()
 
 # ========== ФУНКЦИЯ ДЛЯ МАРГО ==========
 GROQ_KEY = os.environ.get("GROQ_KEY")
@@ -142,6 +153,8 @@ def login():
         
         if user and check_password_hash(user.password, password):
             login_user(user)
+            user.is_online = True
+            db.session.commit()
             flash(f'Добро пожаловать, {username}!', 'success')
             return redirect(url_for('feed'))
         else:
@@ -152,6 +165,8 @@ def login():
 @app.route('/logout')
 @login_required
 def logout():
+    current_user.is_online = False
+    db.session.commit()
     logout_user()
     flash('Вы вышли', 'info')
     return redirect(url_for('index'))
@@ -165,12 +180,14 @@ def feed():
     posts = Post.query.filter(Post.user_id.in_(followed_ids)).order_by(Post.created_at.desc()).all()
     
     for post in posts:
+        post.views += 1
         post.is_following = Follow.query.filter_by(
             follower_id=current_user.id, 
             followed_id=post.user_id
         ).first() is not None
         post.user_liked = Like.query.filter_by(user_id=current_user.id, post_id=post.id).first() is not None
         post.is_author = (post.user_id == current_user.id)
+    db.session.commit()
     
     return render_template('feed.html', posts=posts)
 
@@ -318,6 +335,21 @@ def edit_profile():
     
     return render_template('edit_profile.html')
 
+@app.route('/change_password', methods=['GET', 'POST'])
+@login_required
+def change_password():
+    if request.method == 'POST':
+        old = request.form['old_password']
+        new = request.form['new_password']
+        if check_password_hash(current_user.password, old):
+            current_user.password = generate_password_hash(new)
+            db.session.commit()
+            flash('Пароль изменён!', 'success')
+            return redirect(url_for('profile', username=current_user.username))
+        else:
+            flash('Неверный старый пароль', 'danger')
+    return render_template('change_password.html')
+
 @app.route('/search')
 @login_required
 def search():
@@ -379,7 +411,7 @@ def send_message(username):
         db.session.commit()
     return redirect(url_for('chat', username=username))
 
-# ========== API ДЛЯ МАРГО НА САЙТЕ ==========
+# ========== API ДЛЯ МАРГО ==========
 @app.route('/api/margo', methods=['POST'])
 @login_required
 def api_margo():
