@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, send_from_directory
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -10,7 +10,7 @@ import requests
 app = Flask(__name__)
 app.secret_key = 'sekretnyi-klyuch-go-world'
 
-# База данных (PostgreSQL или SQLite)
+# База данных
 database_url = os.environ.get('DATABASE_URL', 'sqlite:///go_world.db')
 app.config['SQLALCHEMY_DATABASE_URI'] = database_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
@@ -74,7 +74,7 @@ GROQ_KEY = os.environ.get("GROQ_KEY")
 
 def ask_margo(question, username):
     if not GROQ_KEY:
-        return "🤍 марGO пока не настроена"
+        return "🤍 марGO пока не настроена. Добавь GROQ_KEY в переменные окружения."
     url = "https://api.groq.com/openai/v1/chat/completions"
     headers = {"Authorization": f"Bearer {GROQ_KEY}", "Content-Type": "application/json"}
     payload = {
@@ -94,6 +94,10 @@ def ask_margo(question, username):
 @app.route('/')
 def index():
     return render_template('index.html')
+
+@app.route('/static/uploads/<filename>')
+def uploaded_file(filename):
+    return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
@@ -241,4 +245,4 @@ if __name__ == '__main__':
     with app.app_context():
         db.create_all()
     port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port)
+    app.run(host='0.0.0.0', port=port)                                          
