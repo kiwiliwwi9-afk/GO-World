@@ -8,10 +8,7 @@ import os
 
 app = Flask(__name__)
 app.secret_key = 'sekretnyi-klyuch-go-world'
-
-# База данных (сначала SQLite для теста)
-database_url = os.environ.get('DATABASE_URL', 'sqlite:///go_world.db')
-app.config['SQLALCHEMY_DATABASE_URI'] = database_url
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///go_world.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 # Настройки для загрузки файлов
@@ -45,6 +42,8 @@ class Post(db.Model):
     image = db.Column(db.String(200), nullable=True)
     likes = db.Column(db.Integer, default=0)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    author = db.relationship('User', backref=db.backref('posts', lazy=True))
 
 class Follow(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -55,7 +54,6 @@ class Like(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, nullable=False)
     post_id = db.Column(db.Integer, nullable=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 @login_manager.user_loader
 def load_user(user_id):
@@ -162,12 +160,10 @@ def like(post_id):
     if existing_like:
         db.session.delete(existing_like)
         post.likes -= 1
-        flash('Лайк убран', 'info')
     else:
         new_like = Like(user_id=current_user.id, post_id=post_id)
         db.session.add(new_like)
         post.likes += 1
-        flash('Лайк поставлен!', 'success')
     
     db.session.commit()
     return redirect(request.referrer or url_for('feed'))
