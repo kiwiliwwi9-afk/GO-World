@@ -61,6 +61,17 @@ class Like(db.Model):
     post_id = db.Column(db.Integer, db.ForeignKey('post.id'), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
+class Message(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    sender_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    receiver_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    content = db.Column(db.Text, nullable=False)
+    is_read = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    sender = db.relationship('User', foreign_keys=[sender_id])
+    receiver = db.relationship('User', foreign_keys=[receiver_id])
+
 @login_manager.user_loader
 def load_user(user_id):
     return User.query.get(int(user_id))
@@ -93,7 +104,7 @@ async def ask_groq_for_web(question, username):
     except:
         return "Ошибка подключения 🤍"
 
-# ========== РОУТЫ ==========
+# ========== ОСНОВНЫЕ РОУТЫ ==========
 @app.route('/')
 def index():
     return render_template('index.html')
@@ -145,6 +156,7 @@ def logout():
     flash('Вы вышли', 'info')
     return redirect(url_for('index'))
 
+# ========== ЛЕНТА И ПОСТЫ ==========
 @app.route('/feed')
 @login_required
 def feed():
@@ -249,6 +261,7 @@ def delete_post(post_id):
     flash('Пост удалён', 'info')
     return redirect(url_for('feed'))
 
+# ========== ПРОФИЛИ И ПОДПИСКИ ==========
 @app.route('/profile/<username>')
 @login_required
 def profile(username):
@@ -314,6 +327,59 @@ def search():
         users = User.query.filter(User.username.contains(query), User.id != current_user.id).limit(20).all()
     return render_template('search.html', users=users, query=query)
 
+# ========== ЛИЧНЫЕ СООБЩЕНИЯ ==========
+@app.route('/messages')
+@login_required
+def messages():
+    sent = db.session.query(Message.receiver_id).filter_by(sender_id=current_user.id).distinct()
+    received = db.session.query(Message.sender_id).filter_by(receiver_id=current_user.id).distinct()
+    user_ids = set([r[0] for r in sent]) | set([r[0] for r in received])
+    
+    dialogs = []
+    for uid in user_ids:
+        user = User.query.get(uid)
+        last_msg = Message.query.filter(
+            ((Message.sender_id == current_user.id) & (Message.receiver_id == uid)) |
+            ((Message.sender_id == uid) & (Message.receiver_id == current_user.id))
+        ).order_by(Message.created_at.desc()).first()
+        
+        unread_count = Message.query.filter_by(sender_id=uid, receiver_id=current_user.id, is_read=False).count()
+        
+        dialogs.append({
+            'user': user,
+            'last_message': last_msg,
+            'unread_count': unread_count
+        })
+    
+    dialogs.sort(key=lambda x: x['last_message'].created_at if x['last_message'] else datetime.min, reverse=True)
+    return render_template('messages.html', dialogs=dialogs)
+
+@app.route('/messages/<username>')
+@login_required
+def chat(username):
+    other = User.query.filter_by(username=username).first_or_404()
+    Message.query.filter_by(sender_id=other.id, receiver_id=current_user.id, is_read=False).update({'is_read': True})
+    db.session.commit()
+    
+    messages_list = Message.query.filter(
+        ((Message.sender_id == current_user.id) & (Message.receiver_id == other.id)) |
+        ((Message.sender_id == other.id) & (Message.receiver_id == current_user.id))
+    ).order_by(Message.created_at.asc()).all()
+    
+    return render_template('chat.html', other=other, messages=messages_list)
+
+@app.route('/send_message/<username>', methods=['POST'])
+@login_required
+def send_message(username):
+    other = User.query.filter_by(username=username).first_or_404()
+    content = request.form['content']
+    if content:
+        msg = Message(sender_id=current_user.id, receiver_id=other.id, content=content)
+        db.session.add(msg)
+        db.session.commit()
+    return redirect(url_for('chat', username=username))
+
+# ========== API ДЛЯ МАРГО НА САЙТЕ ==========
 @app.route('/api/margo', methods=['POST'])
 @login_required
 def api_margo():
@@ -328,6 +394,7 @@ def api_margo():
     
     return jsonify({'answer': answer})
 
+# ========== ЗАПУСК ==========
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
