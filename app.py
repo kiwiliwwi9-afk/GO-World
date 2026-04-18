@@ -5,18 +5,17 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 from datetime import datetime
 import os
-import aiohttp
-import asyncio
+import requests
 
 app = Flask(__name__)
 app.secret_key = 'sekretnyi-klyuch-go-world'
 
-# База данных
+# ========== БАЗА ДАННЫХ ==========
 database_url = os.environ.get('DATABASE_URL', 'sqlite:///go_world.db')
 app.config['SQLALCHEMY_DATABASE_URI'] = database_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-# Загрузка файлов
+# ========== ЗАГРУЗКА ФАЙЛОВ ==========
 UPLOAD_FOLDER = 'static/uploads'
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
@@ -68,30 +67,28 @@ def load_user(user_id):
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
-# ========== ФУНКЦИЯ ДЛЯ МАРГО ==========
+# ========== МАРГО (СИНХРОННАЯ) ==========
 GROQ_KEY = os.environ.get("GROQ_KEY")
 
-async def ask_groq_for_web(question, username):
+def ask_margo(question, username):
     if not GROQ_KEY:
-        return "🤍 марGO пока не настроена"
+        return "🤍 марGO пока не настроена. Добавь GROQ_KEY в переменные окружения."
     
     url = "https://api.groq.com/openai/v1/chat/completions"
     headers = {"Authorization": f"Bearer {GROQ_KEY}", "Content-Type": "application/json"}
     payload = {
         "model": "llama-3.3-70b-versatile",
-        "messages": [{"role": "user", "content": f"Пользователь {username} спрашивает: {question}. Ответь кратко и дружелюбно, как марGO. Если просят нарисовать картинку, скажи что я бот в чате и не могу рисовать, но могу помочь с текстом."}],
+        "messages": [{"role": "user", "content": f"Пользователь {username} спрашивает: {question}. Ответь кратко и дружелюбно, как марGO. Не пиши 'в предыдущем разговоре'. Просто ответь."}],
         "max_tokens": 300,
         "temperature": 0.8
     }
     try:
-        async with aiohttp.ClientSession() as s:
-            async with s.post(url, headers=headers, json=payload, timeout=30) as r:
-                if r.status == 200:
-                    data = await r.json()
-                    return data['choices'][0]['message']['content']
-                return "Извини, я сейчас не могу ответить. Попробуй позже 🤍"
+        response = requests.post(url, headers=headers, json=payload, timeout=30)
+        if response.status_code == 200:
+            return response.json()['choices'][0]['message']['content']
+        return "Извини, я сейчас не могу ответить 🤍"
     except Exception as e:
-        return "Ошибка подключения. Проверь интернет 🤍"
+        return f"Ошибка: {str(e)}"
 
 # ========== РОУТЫ ==========
 @app.route('/')
@@ -271,13 +268,7 @@ def search():
 def api_margo():
     data = request.get_json()
     question = data.get('question', '')
-    username = current_user.username
-    
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    answer = loop.run_until_complete(ask_groq_for_web(question, username))
-    loop.close()
-    
+    answer = ask_margo(question, current_user.username)
     return jsonify({'answer': answer})
 
 if __name__ == '__main__':
