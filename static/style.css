@@ -263,42 +263,6 @@ input, textarea {
     background: rgba(255,0,0,0.5);
 }
 
-/* ===== АДАПТАЦИЯ ДЛЯ ВСЕХ УСТРОЙСТВ ===== */
-/* ПК (широкие экраны) */
-@media (min-width: 1024px) {
-    .container {
-        max-width: 800px;
-    }
-    
-    h1 {
-        font-size: 64px;
-    }
-    
-    .logo {
-        font-size: 100px;
-    }
-    
-    .feed-container, .profile-container {
-        max-width: 900px;
-    }
-    
-    .post {
-        padding: 25px;
-    }
-}
-
-/* Планшеты */
-@media (min-width: 769px) and (max-width: 1023px) {
-    .container {
-        max-width: 600px;
-    }
-    
-    .feed-container, .profile-container {
-        max-width: 750px;
-    }
-}
-
-/* Телефоны (уже было, оставляем) */
 @media (max-width: 768px) {
     .container {
         padding: 30px 15px;
