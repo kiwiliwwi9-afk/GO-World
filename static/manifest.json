@@ -7,6 +7,7 @@
   "lang": "ru",
   "orientation": "portrait",
   "display": "standalone",
+  "display_override": ["window-controls-overlay"],
   "theme_color": "#8a2be2",
   "background_color": "#0f0c29",
   "icons": [
