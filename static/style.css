@@ -21,11 +21,20 @@ body {
 .logo {
     font-size: 80px;
     margin-bottom: 20px;
+    animation: float 3s ease-in-out infinite;
+}
+
+@keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-20px); }
 }
 
 h1 {
     font-size: 48px;
     margin-bottom: 10px;
+    background: linear-gradient(135deg, #fff, #a855f7);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
 }
 
 h2, h3 {
@@ -57,12 +66,12 @@ h2, h3 {
     cursor: pointer;
     text-decoration: none;
     display: inline-block;
-    transition: transform 0.2s;
+    transition: transform 0.2s, background 0.2s;
 }
 
 .btn:hover {
     transform: scale(1.05);
-    background: #9b4de0;
+    background: #a855f7;
 }
 
 .btn-outline {
@@ -72,8 +81,10 @@ h2, h3 {
 
 .btn-outline:hover {
     background: #8a2be2;
+    transform: scale(1.05);
 }
 
+/* ===== НАВИГАЦИЯ ===== */
 .navbar {
     display: flex;
     justify-content: space-between;
@@ -83,11 +94,17 @@ h2, h3 {
     backdrop-filter: blur(10px);
     flex-wrap: wrap;
     gap: 10px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
 }
 
 .nav-brand {
     font-size: 24px;
     font-weight: bold;
+    background: linear-gradient(135deg, #fff, #a855f7);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
 }
 
 .nav-links {
@@ -99,12 +116,15 @@ h2, h3 {
 .nav-links a, .nav-links span {
     color: white;
     text-decoration: none;
+    transition: opacity 0.2s;
 }
 
 .nav-links a:hover {
+    opacity: 0.7;
     text-decoration: underline;
 }
 
+/* ===== ЛЕНТА И ПРОФИЛЬ ===== */
 .feed-container, .profile-container {
     max-width: 700px;
     margin: 30px auto;
@@ -113,6 +133,7 @@ h2, h3 {
 
 .create-post {
     background: rgba(255,255,255,0.1);
+    backdrop-filter: blur(10px);
     border-radius: 15px;
     padding: 20px;
     margin-bottom: 30px;
@@ -127,24 +148,46 @@ h2, h3 {
     font-size: 16px;
     margin-bottom: 15px;
     resize: vertical;
+    font-family: inherit;
+}
+
+.create-post input[type="file"] {
+    margin-bottom: 15px;
+    color: white;
 }
 
 .post {
     background: rgba(255,255,255,0.1);
+    backdrop-filter: blur(10px);
     border-radius: 15px;
     padding: 20px;
-    margin-bottom: 15px;
+    margin-bottom: 20px;
+    transition: transform 0.2s;
+}
+
+.post:hover {
+    transform: translateY(-2px);
+    background: rgba(255,255,255,0.15);
 }
 
 .post-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 10px;
+    margin-bottom: 12px;
     font-size: 14px;
     opacity: 0.8;
     flex-wrap: wrap;
     gap: 10px;
+}
+
+.post-header a {
+    color: white;
+    text-decoration: none;
+}
+
+.post-header a:hover {
+    text-decoration: underline;
 }
 
 .post-content {
@@ -153,24 +196,92 @@ h2, h3 {
     word-break: break-word;
 }
 
-.post-actions a, .like-btn {
+.post-image {
+    max-width: 100%;
+    border-radius: 10px;
+    margin-top: 10px;
+}
+
+.post-actions {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid rgba(255,255,255,0.1);
+}
+
+.like-btn {
     color: #ff6b6b;
     text-decoration: none;
-    font-size: 14px;
+    font-size: 16px;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    transition: transform 0.2s;
 }
 
-.post-footer {
+.like-btn:hover {
+    transform: scale(1.1);
+}
+
+/* ===== КОММЕНТАРИИ ===== */
+.comments {
+    margin-top: 12px;
+    padding-top: 10px;
+}
+
+.comment {
+    font-size: 13px;
+    padding: 8px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
     display: flex;
-    justify-content: space-between;
-    margin-top: 10px;
-    font-size: 12px;
-    opacity: 0.7;
+    flex-wrap: wrap;
+    gap: 8px;
 }
 
+.comment strong {
+    color: #a855f7;
+}
+
+.comment small {
+    opacity: 0.5;
+    font-size: 11px;
+    margin-left: auto;
+}
+
+.comment-form {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+.comment-form input {
+    flex: 1;
+    padding: 8px 12px;
+    border-radius: 20px;
+    border: none;
+    outline: none;
+    font-size: 13px;
+}
+
+.comment-form button {
+    background: #8a2be2;
+    border: none;
+    border-radius: 20px;
+    padding: 8px 16px;
+    color: white;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.comment-form button:hover {
+    background: #a855f7;
+}
+
+/* ===== ПРОФИЛЬ ===== */
 .profile-header {
     display: flex;
     gap: 30px;
     background: rgba(255,255,255,0.1);
+    backdrop-filter: blur(10px);
     border-radius: 20px;
     padding: 30px;
     margin-bottom: 30px;
@@ -179,6 +290,13 @@ h2, h3 {
 
 .avatar {
     font-size: 80px;
+}
+
+.avatar img {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    object-fit: cover;
 }
 
 .profile-info {
@@ -208,6 +326,7 @@ h2, h3 {
     background: rgba(255,255,255,0.05);
 }
 
+/* ===== ФОРМЫ ===== */
 form {
     display: flex;
     flex-direction: column;
@@ -219,12 +338,19 @@ input, textarea {
     border-radius: 10px;
     border: none;
     font-size: 16px;
+    outline: none;
 }
 
+input:focus, textarea:focus {
+    outline: 2px solid #8a2be2;
+}
+
+/* ===== АЛЕРТЫ ===== */
 .alert {
-    padding: 10px;
-    border-radius: 8px;
-    margin-bottom: 15px;
+    padding: 12px;
+    border-radius: 10px;
+    margin-bottom: 20px;
+    text-align: center;
 }
 
 .alert-success {
@@ -242,13 +368,23 @@ input, textarea {
     border: 1px solid #00ffff;
 }
 
+/* ===== ПОИСК ===== */
+.users-list {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    margin-top: 20px;
+}
+
+/* ===== КНОПКИ ПОДПИСКИ ===== */
 .follow-btn, .unfollow-btn {
     font-size: 12px;
-    padding: 4px 10px;
+    padding: 4px 12px;
     border-radius: 20px;
     text-decoration: none;
     background: rgba(255,255,255,0.2);
     color: white;
+    transition: background 0.2s;
 }
 
 .follow-btn:hover {
@@ -263,6 +399,7 @@ input, textarea {
     background: rgba(255,0,0,0.5);
 }
 
+/* ===== МОБИЛЬНАЯ ВЕРСИЯ ===== */
 @media (max-width: 768px) {
     .container {
         padding: 30px 15px;
@@ -327,4 +464,23 @@ input, textarea {
         flex-direction: column;
         align-items: flex-start;
     }
+}
+
+/* ===== СКРОЛЛ ===== */
+::-webkit-scrollbar {
+    width: 6px;
+}
+
+::-webkit-scrollbar-track {
+    background: rgba(255,255,255,0.1);
+    border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #8a2be2;
+    border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #a855f7;
 }
