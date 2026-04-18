@@ -3,7 +3,6 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime
-import sqlite3
 import os
 
 app = Flask(__name__)
@@ -37,6 +36,16 @@ class Post(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
     author = db.relationship('User', backref=db.backref('posts', lazy=True))
+
+class Comment(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    post_id = db.Column(db.Integer, db.ForeignKey('post.id'), nullable=False)
+    content = db.Column(db.Text, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    author = db.relationship('User', backref=db.backref('comments', lazy=True))
+    post = db.relationship('Post', backref=db.backref('comments', lazy=True, order_by='Comment.created_at.desc()'))
 
 class Follow(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -102,10 +111,16 @@ def logout():
 @app.route('/feed')
 @login_required
 def feed():
-    # Получаем посты от тех, на кого подписан
     followed_ids = [f.followed_id for f in Follow.query.filter_by(follower_id=current_user.id).all()]
     followed_ids.append(current_user.id)
     posts = Post.query.filter(Post.user_id.in_(followed_ids)).order_by(Post.created_at.desc()).all()
+    
+    for post in posts:
+        post.is_following = Follow.query.filter_by(
+            follower_id=current_user.id, 
+            followed_id=post.user_id
+        ).first() is not None
+    
     return render_template('feed.html', posts=posts)
 
 @app.route('/post', methods=['POST'])
@@ -125,7 +140,23 @@ def like(post_id):
     post = Post.query.get_or_404(post_id)
     post.likes += 1
     db.session.commit()
-    return redirect(url_for('feed'))
+    return redirect(request.referrer or url_for('feed'))
+
+@app.route('/comment/<int:post_id>', methods=['POST'])
+@login_required
+def add_comment(post_id):
+    content = request.form['content']
+    if content:
+        comment = Comment(user_id=current_user.id, post_id=post_id, content=content)
+        db.session.add(comment)
+        db.session.commit()
+    return redirect(request.referrer or url_for('feed'))
+
+@app.route('/post/<int:post_id>')
+@login_required
+def view_post(post_id):
+    post = Post.query.get_or_404(post_id)
+    return render_template('post.html', post=post)
 
 @app.route('/profile/<username>')
 @login_required
@@ -147,7 +178,9 @@ def follow(username):
             db.session.add(follow)
             db.session.commit()
             flash(f'Вы подписались на {username}', 'success')
-    return redirect(url_for('profile', username=username))
+    
+    next_page = request.args.get('next', 'feed')
+    return redirect(url_for(next_page))
 
 @app.route('/unfollow/<username>')
 @login_required
@@ -158,8 +191,21 @@ def unfollow(username):
         db.session.delete(follow)
         db.session.commit()
         flash(f'Вы отписались от {username}', 'info')
-    return redirect(url_for('profile', username=username))
-    @app.route('/search')
+    
+    next_page = request.args.get('next', 'feed')
+    return redirect(url_for(next_page))
+
+@app.route('/profile/edit', methods=['GET', 'POST'])
+@login_required
+def edit_profile():
+    if request.method == 'POST':
+        current_user.bio = request.form['bio']
+        db.session.commit()
+        flash('Профиль обновлён!', 'success')
+        return redirect(url_for('profile', username=current_user.username))
+    return render_template('edit_profile.html')
+
+@app.route('/search')
 @login_required
 def search():
     query = request.args.get('q', '')
@@ -169,5 +215,5 @@ def search():
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
-    port = int(os.environ.get('PORT', 10000))
+    port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port, debug=False)
