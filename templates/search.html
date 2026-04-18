@@ -42,21 +42,5 @@
                         </div>
                         <div>
                             <strong>{{ user.username }}</strong>
-                            <p style="font-size: 12px; opacity: 0.7;">{{ user.bio[:50] or 'Нет описания' }}</p>
-                        </div>
-                    </div>
-                    <div style="display: flex; gap: 10px;">
-                        <a href="/profile/{{ user.username }}" class="btn" style="padding: 5px 15px;">Профиль</a>
-                        <a href="/messages/{{ user.username }}" class="btn btn-outline" style="padding: 5px 15px;">💬</a>
-                    </div>
-                </div>
-                {% endfor %}
-            </div>
-        {% elif query %}
-            <p>Никого не найдено</p>
-        {% else %}
-            <p>Введи имя пользователя для поиска</p>
-        {% endif %}
-    </div>
-</body>
-</html>
+                            {% if user.is_online %}
+                                <span style="color: #00ff
