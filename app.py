@@ -9,7 +9,7 @@ import os
 app = Flask(__name__)
 app.secret_key = 'sekretnyi-klyuch-go-world'
 
-# База данных
+# База данных (сначала SQLite для теста)
 database_url = os.environ.get('DATABASE_URL', 'sqlite:///go_world.db')
 app.config['SQLALCHEMY_DATABASE_URI'] = database_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
