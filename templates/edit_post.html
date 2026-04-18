@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Редактировать пост — GO World</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-brand">🌍 GO World</div>
+        <div class="nav-links">
+            <a href="/feed">Лента</a>
+            <a href="/profile/{{ current_user.username }}">Профиль</a>
+            <a href="/search">🔍 Найти</a>
+            <a href="/logout">Выйти</a>
+        </div>
+    </nav>
+    
+    <div class="container">
+        <h2>✏️ Редактировать пост</h2>
+        
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ category }}">{{ message }}</div>
+            {% endfor %}
+        {% endwith %}
+        
+        <form method="POST" enctype="multipart/form-data">
+            <textarea name="content" placeholder="Текст поста..." rows="4" required style="width:100%; padding:10px; margin-bottom:15px;">{{ post.content }}</textarea>
+            
+            {% if post.image %}
+                <div style="margin-bottom:15px;">
+                    <img src="{{ post.image }}" alt="current" style="max-width:100%; max-height:200px; border-radius:10px;">
+                    <p style="font-size:12px; opacity:0.7;">Текущее фото</p>
+                </div>
+            {% endif %}
+            
+            <input type="file" name="image" accept="image/*" style="margin-bottom:15px;">
+            <button type="submit" class="btn">Сохранить</button>
+            <a href="/feed" class="btn btn-outline">Отмена</a>
+        </form>
+    </div>
+</body>
+</html>
