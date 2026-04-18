@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Пост — GO World</title>
+    <title>{{ user.username }} — GO World</title>
     <link rel="stylesheet" href="/static/style.css">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 </head>
@@ -9,6 +9,7 @@
     <nav class="navbar">
         <div class="nav-brand">🌍 GO World</div>
         <div class="nav-links">
+            <span>Привет, {{ current_user.username }}!</span>
             <a href="/feed">Лента</a>
             <a href="/profile/{{ current_user.username }}">Профиль</a>
             <a href="/search">Поиск</a>
@@ -16,39 +17,43 @@
         </div>
     </nav>
     
-    <div class="feed-container">
-        <div class="post">
-            <div class="post-header">
-                <div>
-                    <a href="/profile/{{ post.author.username }}" class="profile-link">
-                        <strong>{{ post.author.username }}</strong>
-                    </a>
-                    <small>{{ post.created_at.strftime('%d.%m.%Y %H:%M') }}</small>
+    <div class="profile-container">
+        <div class="profile-header">
+            <div class="avatar">👤</div>
+            <div class="profile-info">
+                <h2>{{ user.username }}</h2>
+                <p class="bio">{{ user.bio or 'Пользователь GO World' }}</p>
+                <div class="stats">
+                    <span>📝 {{ user.get_posts()|length }} постов</span>
+                    <span>👥 {{ followers_count }} подписчиков</span>
+                    <span>👣 {{ following_count }} подписок</span>
                 </div>
-            </div>
-            <div class="post-content">{{ post.content }}</div>
-            <div class="post-actions">
-                <a href="/like/{{ post.id }}" class="like-btn">❤️ {{ post.likes }}</a>
-            </div>
-            
-            <div class="comment-section">
-                <h4>Комментарии ({{ post.comments|length }})</h4>
-                <form method="POST" action="/comment/{{ post.id }}">
-                    <input type="text" name="content" placeholder="Написать комментарий..." class="comment-input">
-                    <button type="submit" class="comment-submit">💬</button>
-                </form>
-                <div class="comments">
-                    {% for comment in post.comments %}
-                        <div class="comment">
-                            <strong><a href="/profile/{{ comment.author.username }}" class="profile-link">{{ comment.author.username }}</a></strong>
-                            <span>{{ comment.content }}</span>
-                            <small>{{ comment.created_at.strftime('%d.%m.%Y %H:%M') }}</small>
-                        </div>
+                {% if current_user.id != user.id %}
+                    {% if is_following %}
+                        <a href="/unfollow/{{ user.username }}?next=profile" class="btn">Отписаться</a>
                     {% else %}
-                        <p>Нет комментариев. Будь первым!</p>
-                    {% endfor %}
+                        <a href="/follow/{{ user.username }}?next=profile" class="btn">Подписаться</a>
+                    {% endif %}
+                {% else %}
+                    <a href="/profile/edit" class="btn btn-outline">Редактировать профиль</a>
+                {% endif %}
+            </div>
+        </div>
+        
+        <div class="user-posts">
+            <h3>Посты {{ user.username }}</h3>
+            {% for post in user.get_posts() %}
+            <div class="post">
+                <div class="post-content">{{ post.content }}</div>
+                <div class="post-footer">
+                    <small>{{ post.created_at.strftime('%d.%m.%Y %H:%M') }}</small>
+                    <span>❤️ {{ post.likes }}</span>
+                    <a href="/post/{{ post.id }}" class="comment-btn">💬 {{ post.comments|length }}</a>
                 </div>
             </div>
+            {% else %}
+            <p>Нет постов</p>
+            {% endfor %}
         </div>
     </div>
 </body>
