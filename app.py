@@ -159,6 +159,12 @@ def unfollow(username):
         db.session.commit()
         flash(f'Вы отписались от {username}', 'info')
     return redirect(url_for('profile', username=username))
+    @app.route('/search')
+@login_required
+def search():
+    query = request.args.get('q', '')
+    users = User.query.filter(User.username.contains(query)).all() if query else []
+    return render_template('search.html', users=users, query=query)
 
 if __name__ == '__main__':
     with app.app_context():
