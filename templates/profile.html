@@ -2,6 +2,8 @@
 <html>
 <head>
     <title>{{ user.username }} — GO World</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
@@ -28,12 +30,12 @@
                 </div>
                 {% if current_user.id != user.id %}
                     {% if is_following %}
-                        <a href="/unfollow/{{ user.username }}" class="btn">Отписаться</a>
+                        <a href="/unfollow/{{ user.username }}?next=profile" class="btn">Отписаться</a>
                     {% else %}
-                        <a href="/follow/{{ user.username }}" class="btn">Подписаться</a>
+                        <a href="/follow/{{ user.username }}?next=profile" class="btn">Подписаться</a>
                     {% endif %}
                 {% else %}
-                    <a href="#" class="btn btn-outline">Редактировать профиль</a>
+                    <a href="/profile/edit" class="btn btn-outline">Редактировать профиль</a>
                 {% endif %}
             </div>
         </div>
