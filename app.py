@@ -36,8 +36,6 @@ class User(UserMixin, db.Model):
     avatar = db.Column(db.String(200), default='/static/default-avatar.png')
     bio = db.Column(db.String(300), default='')
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    last_seen = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    is_online = db.Column(db.Boolean, default=False)
     
     def get_posts(self):
         return Post.query.filter_by(user_id=self.id).order_by(Post.created_at.desc()).all()
@@ -48,7 +46,6 @@ class Post(db.Model):
     content = db.Column(db.Text, nullable=False)
     image = db.Column(db.String(200), nullable=True)
     likes = db.Column(db.Integer, default=0)
-    views = db.Column(db.Integer, default=0)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
     author = db.relationship('User', backref=db.backref('posts', lazy=True))
@@ -64,29 +61,14 @@ class Like(db.Model):
     post_id = db.Column(db.Integer, db.ForeignKey('post.id'), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-class Message(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    sender_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    receiver_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    content = db.Column(db.Text, nullable=False)
-    is_read = db.Column(db.Boolean, default=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    
-    sender = db.relationship('User', foreign_keys=[sender_id])
-    receiver = db.relationship('User', foreign_keys=[receiver_id])
-
-class Notification(db.Model):
+class Comment(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    type = db.Column(db.String(50))  # 'like', 'follow', 'message'
-    from_user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
-    post_id = db.Column(db.Integer, db.ForeignKey('post.id'), nullable=True)
-    is_read = db.Column(db.Boolean, default=False)
+    post_id = db.Column(db.Integer, db.ForeignKey('post.id'), nullable=False)
+    content = db.Column(db.Text, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
-    user = db.relationship('User', foreign_keys=[user_id])
-    from_user = db.relationship('User', foreign_keys=[from_user_id])
-    post = db.relationship('Post')
+    author = db.relationship('User', backref=db.backref('comments', lazy=True))
 
 @login_manager.user_loader
 def load_user(user_id):
@@ -94,24 +76,6 @@ def load_user(user_id):
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
-
-def create_notification(user_id, type, from_user_id, post_id=None):
-    notif = Notification(
-        user_id=user_id,
-        type=type,
-        from_user_id=from_user_id,
-        post_id=post_id
-    )
-    db.session.add(notif)
-    db.session.commit()
-
-# ========== ОНЛАЙН-СТАТУС ==========
-@app.before_request
-def update_last_seen():
-    if current_user.is_authenticated:
-        current_user.last_seen = datetime.utcnow()
-        current_user.is_online = True
-        db.session.commit()
 
 # ========== ФУНКЦИЯ ДЛЯ МАРГО ==========
 GROQ_KEY = os.environ.get("GROQ_KEY")
@@ -138,7 +102,7 @@ async def ask_groq_for_web(question, username):
     except:
         return "Ошибка подключения 🤍"
 
-# ========== ОСНОВНЫЕ РОУТЫ ==========
+# ========== РОУТЫ ==========
 @app.route('/')
 def index():
     return render_template('index.html')
@@ -176,8 +140,6 @@ def login():
         
         if user and check_password_hash(user.password, password):
             login_user(user)
-            user.is_online = True
-            db.session.commit()
             flash(f'Добро пожаловать, {username}!', 'success')
             return redirect(url_for('feed'))
         else:
@@ -188,13 +150,10 @@ def login():
 @app.route('/logout')
 @login_required
 def logout():
-    current_user.is_online = False
-    db.session.commit()
     logout_user()
     flash('Вы вышли', 'info')
     return redirect(url_for('index'))
 
-# ========== ЛЕНТА И ПОСТЫ ==========
 @app.route('/feed')
 @login_required
 def feed():
@@ -203,14 +162,13 @@ def feed():
     posts = Post.query.filter(Post.user_id.in_(followed_ids)).order_by(Post.created_at.desc()).all()
     
     for post in posts:
-        post.views += 1
         post.is_following = Follow.query.filter_by(
             follower_id=current_user.id, 
             followed_id=post.user_id
         ).first() is not None
         post.user_liked = Like.query.filter_by(user_id=current_user.id, post_id=post.id).first() is not None
         post.is_author = (post.user_id == current_user.id)
-    db.session.commit()
+        post.comments = Comment.query.filter_by(post_id=post.id).order_by(Comment.created_at.asc()).all()
     
     return render_template('feed.html', posts=posts)
 
@@ -248,11 +206,33 @@ def like(post_id):
         new_like = Like(user_id=current_user.id, post_id=post_id)
         db.session.add(new_like)
         post.likes += 1
-        # Уведомление о лайке
-        if post.user_id != current_user.id:
-            create_notification(post.user_id, 'like', current_user.id, post.id)
     
     db.session.commit()
+    return redirect(request.referrer or url_for('feed'))
+
+@app.route('/comment/<int:post_id>', methods=['POST'])
+@login_required
+def add_comment(post_id):
+    post = Post.query.get_or_404(post_id)
+    content = request.form['content']
+    if content:
+        comment = Comment(user_id=current_user.id, post_id=post_id, content=content)
+        db.session.add(comment)
+        db.session.commit()
+        flash('Комментарий добавлен', 'success')
+    return redirect(request.referrer or url_for('feed'))
+
+@app.route('/delete_comment/<int:comment_id>')
+@login_required
+def delete_comment(comment_id):
+    comment = Comment.query.get_or_404(comment_id)
+    if comment.user_id != current_user.id:
+        flash('Это не твой комментарий!', 'danger')
+        return redirect(request.referrer or url_for('feed'))
+    
+    db.session.delete(comment)
+    db.session.commit()
+    flash('Комментарий удалён', 'info')
     return redirect(request.referrer or url_for('feed'))
 
 @app.route('/edit_post/<int:post_id>', methods=['GET', 'POST'])
@@ -304,7 +284,6 @@ def delete_post(post_id):
     flash('Пост удалён', 'info')
     return redirect(url_for('feed'))
 
-# ========== ПРОФИЛИ И ПОДПИСКИ ==========
 @app.route('/profile/<username>')
 @login_required
 def profile(username):
@@ -324,8 +303,6 @@ def follow(username):
             follow = Follow(follower_id=current_user.id, followed_id=user.id)
             db.session.add(follow)
             db.session.commit()
-            # Уведомление о подписке
-            create_notification(user.id, 'follow', current_user.id)
             flash(f'Вы подписались на {username}', 'success')
     
     next_page = request.args.get('next', 'feed')
@@ -363,21 +340,6 @@ def edit_profile():
     
     return render_template('edit_profile.html')
 
-@app.route('/change_password', methods=['GET', 'POST'])
-@login_required
-def change_password():
-    if request.method == 'POST':
-        old = request.form['old_password']
-        new = request.form['new_password']
-        if check_password_hash(current_user.password, old):
-            current_user.password = generate_password_hash(new)
-            db.session.commit()
-            flash('Пароль изменён!', 'success')
-            return redirect(url_for('profile', username=current_user.username))
-        else:
-            flash('Неверный старый пароль', 'danger')
-    return render_template('change_password.html')
-
 @app.route('/search')
 @login_required
 def search():
@@ -387,79 +349,6 @@ def search():
         users = User.query.filter(User.username.contains(query), User.id != current_user.id).limit(20).all()
     return render_template('search.html', users=users, query=query)
 
-# ========== ЛИЧНЫЕ СООБЩЕНИЯ ==========
-@app.route('/messages')
-@login_required
-def messages():
-    sent = db.session.query(Message.receiver_id).filter_by(sender_id=current_user.id).distinct()
-    received = db.session.query(Message.sender_id).filter_by(receiver_id=current_user.id).distinct()
-    user_ids = set([r[0] for r in sent]) | set([r[0] for r in received])
-    
-    dialogs = []
-    for uid in user_ids:
-        user = User.query.get(uid)
-        last_msg = Message.query.filter(
-            ((Message.sender_id == current_user.id) & (Message.receiver_id == uid)) |
-            ((Message.sender_id == uid) & (Message.receiver_id == current_user.id))
-        ).order_by(Message.created_at.desc()).first()
-        
-        unread_count = Message.query.filter_by(sender_id=uid, receiver_id=current_user.id, is_read=False).count()
-        
-        dialogs.append({
-            'user': user,
-            'last_message': last_msg,
-            'unread_count': unread_count
-        })
-    
-    dialogs.sort(key=lambda x: x['last_message'].created_at if x['last_message'] else datetime.min, reverse=True)
-    return render_template('messages.html', dialogs=dialogs)
-
-@app.route('/messages/<username>')
-@login_required
-def chat(username):
-    other = User.query.filter_by(username=username).first_or_404()
-    Message.query.filter_by(sender_id=other.id, receiver_id=current_user.id, is_read=False).update({'is_read': True})
-    db.session.commit()
-    
-    messages_list = Message.query.filter(
-        ((Message.sender_id == current_user.id) & (Message.receiver_id == other.id)) |
-        ((Message.sender_id == other.id) & (Message.receiver_id == current_user.id))
-    ).order_by(Message.created_at.asc()).all()
-    
-    return render_template('chat.html', other=other, messages=messages_list)
-
-@app.route('/send_message/<username>', methods=['POST'])
-@login_required
-def send_message(username):
-    other = User.query.filter_by(username=username).first_or_404()
-    content = request.form['content']
-    if content:
-        msg = Message(sender_id=current_user.id, receiver_id=other.id, content=content)
-        db.session.add(msg)
-        db.session.commit()
-        # Уведомление о сообщении
-        if other.id != current_user.id:
-            create_notification(other.id, 'message', current_user.id)
-    return redirect(url_for('chat', username=username))
-
-# ========== УВЕДОМЛЕНИЯ ==========
-@app.route('/notifications')
-@login_required
-def notifications():
-    notifs = Notification.query.filter_by(user_id=current_user.id).order_by(Notification.created_at.desc()).all()
-    for n in notifs:
-        n.is_read = True
-    db.session.commit()
-    return render_template('notifications.html', notifs=notifs)
-
-def get_unread_count():
-    if current_user.is_authenticated:
-        return Notification.query.filter_by(user_id=current_user.id, is_read=False).count()
-    return 0
-
-app.jinja_env.globals.update(get_unread_count=get_unread_count)
-
-# ========== API ДЛЯ МАРГО ==========
 @app.route('/api/margo', methods=['POST'])
 @login_required
 def api_margo():
@@ -474,7 +363,6 @@ def api_margo():
     
     return jsonify({'answer': answer})
 
-# ========== ЗАПУСК ==========
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
