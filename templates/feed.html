@@ -2,16 +2,15 @@
 <html>
 <head>
     <title>Лента — GO World</title>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="/static/style.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
 </head>
 <body>
     <nav class="navbar">
         <div class="nav-brand">🌍 GO World</div>
         <div class="nav-links">
-            <span>Привет, {{ current_user.username }}!</span>
             <a href="/feed">Лента</a>
+            <a href="/search">🔍 Найти</a>
             <a href="/profile/{{ current_user.username }}">Профиль</a>
             <a href="/logout">Выйти</a>
         </div>
@@ -20,8 +19,9 @@
     <div class="feed-container">
         <div class="create-post">
             <h3>Что нового?</h3>
-            <form method="POST" action="/post">
+            <form method="POST" action="/post" enctype="multipart/form-data">
                 <textarea name="content" placeholder="Напиши пост..." required></textarea>
+                <input type="file" name="image" accept="image/*" style="margin:10px 0;">
                 <button type="submit" class="btn">Опубликовать</button>
             </form>
         </div>
@@ -44,8 +44,15 @@
                     {% endif %}
                 </div>
                 <div class="post-content">{{ post.content }}</div>
+                {% if post.image %}
+                    <img src="{{ post.image }}" alt="post image" style="max-width:100%; border-radius:10px; margin-top:10px;">
+                {% endif %}
                 <div class="post-actions">
-                    <a href="/like/{{ post.id }}" class="like-btn">❤️ {{ post.likes }}</a>
+                    {% if post.user_liked %}
+                        <a href="/like/{{ post.id }}" class="like-btn liked">❤️ {{ post.likes }}</a>
+                    {% else %}
+                        <a href="/like/{{ post.id }}" class="like-btn">🤍 {{ post.likes }}</a>
+                    {% endif %}
                 </div>
             </div>
             {% else %}
