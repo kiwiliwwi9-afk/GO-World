@@ -48,8 +48,14 @@
                 {% if post.image %}
                     <img src="{{ post.image }}" alt="post image" style="max-width:100%; border-radius:10px; margin-top:10px;">
                 {% endif %}
-                <div class="post-actions">
+                <div class="post-actions" style="display: flex; justify-content: space-between; align-items: center; margin-top: 10px;">
                     <a href="/like/{{ post.id }}" class="like-btn">❤️ {{ post.likes }}</a>
+                    {% if post.is_author %}
+                    <div style="display: flex; gap: 10px;">
+                        <a href="/edit_post/{{ post.id }}" style="color: #ffd700; text-decoration: none;" title="Редактировать">✏️</a>
+                        <a href="/delete_post/{{ post.id }}" style="color: #ff6b6b; text-decoration: none;" onclick="return confirm('Удалить пост?')" title="Удалить">🗑️</a>
+                    </div>
+                    {% endif %}
                 </div>
             </div>
             {% else %}
