@@ -5,10 +5,25 @@
     <style>
         body {
             font-family: Arial;
-            text-align: center;
-            padding: 50px;
+            padding: 20px;
             background: linear-gradient(135deg, #667eea, #764ba2);
             color: white;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        .post {
+            background: rgba(255,255,255,0.1);
+            padding: 15px;
+            border-radius: 15px;
+            margin-bottom: 15px;
+        }
+        textarea {
+            width: 100%;
+            padding: 10px;
+            border-radius: 10px;
+            border: none;
         }
         .btn {
             background: white;
@@ -16,13 +31,38 @@
             padding: 10px 20px;
             border-radius: 20px;
             text-decoration: none;
+            border: none;
+            margin-top: 10px;
+        }
+        .logout {
+            color: white;
+            text-decoration: none;
+            float: right;
         }
     </style>
 </head>
 <body>
-    <h1>GO World</h1>
-    <p>Привет, {{ current_user.username }}!</p>
-    <p>Твоя лента постов скоро появится.</p>
-    <a href="/logout" class="btn">Выйти</a>
+    <div class="container">
+        <a href="/logout" class="logout">Выйти</a>
+        <h1>GO World</h1>
+        <h2>Привет, {{ current_user.username }}!</h2>
+        
+        <h3>Что нового?</h3>
+        <form method="POST" action="/post">
+            <textarea name="content" placeholder="Напиши пост..." rows="3" required></textarea>
+            <button type="submit" class="btn">Опубликовать</button>
+        </form>
+        
+        <h3>Лента</h3>
+        {% for post in posts %}
+        <div class="post">
+            <strong>{{ post.author.username }}</strong>
+            <p>{{ post.content }}</p>
+            <small>{{ post.created_at.strftime('%d.%m.%Y %H:%M') }}</small>
+        </div>
+        {% else %}
+        <p>Нет постов. Напиши первый!</p>
+        {% endfor %}
+    </div>
 </body>
 </html>
