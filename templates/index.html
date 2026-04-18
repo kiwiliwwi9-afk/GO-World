@@ -4,6 +4,17 @@
     <title>GO World — твоя соцсеть</title>
     <link rel="stylesheet" href="/static/style.css">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    
+    <!-- PWA manifest -->
+    <link rel="manifest" href="/static/manifest.json">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="GO World">
+    <meta name="theme-color" content="#8a2be2">
+    
+    <!-- Иконки для PWA -->
+    <link rel="icon" type="image/png" sizes="192x192" href="/static/icon-192.png">
+    <link rel="apple-touch-icon" href="/static/icon-192.png">
 </head>
 <body>
     <div class="container">
@@ -16,5 +27,14 @@
         </div>
         <div class="margo">🤍 с марGO внутри</div>
     </div>
+    
+    <script>
+        // Регистрация Service Worker для PWA
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('/static/sw.js')
+                .then(() => console.log('Service Worker зарегистрирован'))
+                .catch(err => console.log('Ошибка SW:', err));
+        }
+    </script>
 </body>
 </html>
