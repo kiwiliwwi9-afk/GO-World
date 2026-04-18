@@ -29,7 +29,7 @@
                 <h2>{{ user.username }}</h2>
                 <p class="bio">{{ user.bio or 'Пользователь GO World' }}</p>
                 <div class="stats">
-                    <span>📝 {{ user.get_posts()|length }} постов</span>
+                    <span>📝 {{ user.posts|length }} постов</span>
                     <span>👥 {{ followers_count }} подписчиков</span>
                     <span>👣 {{ following_count }} подписок</span>
                 </div>
@@ -47,7 +47,7 @@
         
         <div class="user-posts">
             <h3>Посты {{ user.username }}</h3>
-            {% for post in user.get_posts() %}
+            {% for post in user.posts %}
             <div class="post">
                 <div class="post-content">{{ post.content }}</div>
                 {% if post.image %}
