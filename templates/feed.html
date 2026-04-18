@@ -9,9 +9,10 @@
     <nav class="navbar">
         <div class="nav-brand">🌍 GO World</div>
         <div class="nav-links">
+            <span>Привет, {{ current_user.username }}!</span>
             <a href="/feed">Лента</a>
-            <a href="/search">🔍 Найти</a>
             <a href="/profile/{{ current_user.username }}">Профиль</a>
+            <a href="/search">🔍 Найти</a>
             <a href="/logout">Выйти</a>
         </div>
     </nav>
@@ -21,7 +22,7 @@
             <h3>Что нового?</h3>
             <form method="POST" action="/post" enctype="multipart/form-data">
                 <textarea name="content" placeholder="Напиши пост..." required></textarea>
-                <input type="file" name="image" accept="image/*" style="margin:10px 0;">
+                <input type="file" name="image" accept="image/*">
                 <button type="submit" class="btn">Опубликовать</button>
             </form>
         </div>
@@ -34,6 +35,7 @@
                         <strong>{{ post.author.username }}</strong>
                         <small>{{ post.created_at.strftime('%d.%m.%Y %H:%M') }}</small>
                     </div>
+                    
                     {% if post.author.username != current_user.username %}
                         {% if post.is_following %}
                             <a href="/unfollow/{{ post.author.username }}?next=feed" class="unfollow-btn">✓ Подписан</a>
@@ -47,11 +49,7 @@
                     <img src="{{ post.image }}" alt="post image" style="max-width:100%; border-radius:10px; margin-top:10px;">
                 {% endif %}
                 <div class="post-actions">
-                    {% if post.user_liked %}
-                        <a href="/like/{{ post.id }}" class="like-btn liked">❤️ {{ post.likes }}</a>
-                    {% else %}
-                        <a href="/like/{{ post.id }}" class="like-btn">🤍 {{ post.likes }}</a>
-                    {% endif %}
+                    <a href="/like/{{ post.id }}" class="like-btn">❤️ {{ post.likes }}</a>
                 </div>
             </div>
             {% else %}
@@ -59,5 +57,91 @@
             {% endfor %}
         </div>
     </div>
+
+    <!-- марGO чат -->
+    <div id="margo-chat" style="position: fixed; bottom: 20px; right: 20px; z-index: 1000;">
+        <div id="margo-toggle" style="background: #8a2be2; width: 60px; height: 60px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,0.3);">
+            <span style="font-size: 30px;">🤍</span>
+        </div>
+        <div id="margo-window" style="display: none; position: absolute; bottom: 70px; right: 0; width: 320px; height: 450px; background: #1a1a2e; border-radius: 15px; box-shadow: 0 4px 20px rgba(0,0,0,0.4); overflow: hidden; flex-direction: column;">
+            <div style="background: #8a2be2; padding: 12px; color: white; font-weight: bold; display: flex; justify-content: space-between;">
+                <span>🤍 марGO</span>
+                <span id="margo-close" style="cursor: pointer;">✕</span>
+            </div>
+            <div id="margo-messages" style="flex: 1; padding: 12px; overflow-y: auto; color: white; font-size: 14px; display: flex; flex-direction: column; gap: 8px;">
+                <div style="background: #302b63; padding: 8px 12px; border-radius: 15px; align-self: flex-start;">Привет! Я марGO 🤍 Задай вопрос или напиши «нарисуй кота»</div>
+            </div>
+            <div style="padding: 12px; background: #0f0c29; display: flex; gap: 8px;">
+                <input type="text" id="margo-input" placeholder="Спроси марGO..." style="flex: 1; padding: 8px; border-radius: 20px; border: none; outline: none;">
+                <button id="margo-send" style="background: #8a2be2; border: none; border-radius: 20px; padding: 8px 16px; color: white; cursor: pointer;">→</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const toggle = document.getElementById('margo-toggle');
+        const windowEl = document.getElementById('margo-window');
+        const closeBtn = document.getElementById('margo-close');
+        const sendBtn = document.getElementById('margo-send');
+        const input = document.getElementById('margo-input');
+        const messages = document.getElementById('margo-messages');
+
+        toggle.addEventListener('click', () => {
+            if (windowEl.style.display === 'none' || windowEl.style.display === '') {
+                windowEl.style.display = 'flex';
+            } else {
+                windowEl.style.display = 'none';
+            }
+        });
+
+        closeBtn.addEventListener('click', () => {
+            windowEl.style.display = 'none';
+        });
+
+        function addMessage(text, isUser = false) {
+            const msg = document.createElement('div');
+            msg.textContent = text;
+            msg.style.background = isUser ? '#8a2be2' : '#302b63';
+            msg.style.padding = '8px 12px';
+            msg.style.borderRadius = '15px';
+            msg.style.alignSelf = isUser ? 'flex-end' : 'flex-start';
+            msg.style.maxWidth = '85%';
+            msg.style.margin = '4px 0';
+            messages.appendChild(msg);
+            messages.scrollTop = messages.scrollHeight;
+        }
+
+        async function askMargo(question) {
+            addMessage(question, true);
+            input.value = '';
+            addMessage('🤍 Думаю...');
+            
+            try {
+                const response = await fetch('/api/margo', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ question: question })
+                });
+                const data = await response.json();
+                messages.removeChild(messages.lastChild);
+                addMessage(data.answer);
+            } catch (error) {
+                messages.removeChild(messages.lastChild);
+                addMessage('❌ Ошибка, попробуй позже');
+            }
+        }
+
+        sendBtn.addEventListener('click', () => {
+            if (input.value.trim()) {
+                askMargo(input.value.trim());
+            }
+        });
+
+        input.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter' && input.value.trim()) {
+                askMargo(input.value.trim());
+            }
+        });
+    </script>
 </body>
 </html>
