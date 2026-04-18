@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Лента — GO World</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-brand">🌍 GO World</div>
+        <div class="nav-links">
+            <span>Привет, {{ current_user.username }}!</span>
+            <a href="/feed">Лента</a>
+            <a href="/profile/{{ current_user.username }}">Профиль</a>
+            <a href="/logout">Выйти</a>
+        </div>
+    </nav>
+    
+    <div class="feed-container">
+        <div class="create-post">
+            <h3>Что нового?</h3>
+            <form method="POST" action="/post">
+                <textarea name="content" placeholder="Напиши пост..." required></textarea>
+                <button type="submit" class="btn">Опубликовать</button>
+            </form>
+        </div>
+        
+        <div class="posts">
+            {% for post in posts %}
+            <div class="post">
+                <div class="post-header">
+                    <strong>{{ post.author.username }}</strong>
+                    <small>{{ post.created_at.strftime('%d.%m.%Y %H:%M') }}</small>
+                </div>
+                <div class="post-content">{{ post.content }}</div>
+                <div class="post-actions">
+                    <a href="/like/{{ post.id }}" class="like-btn">❤️ {{ post.likes }}</a>
+                </div>
+            </div>
+            {% else %}
+            <p>Нет постов. Подпишись на кого-нибудь!</p>
+            {% endfor %}
+        </div>
+    </div>
+</body>
+</html> 

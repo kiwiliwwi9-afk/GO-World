@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>{{ user.username }} — GO World</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-brand">🌍 GO World</div>
+        <div class="nav-links">
+            <span>Привет, {{ current_user.username }}!</span>
+            <a href="/feed">Лента</a>
+            <a href="/profile/{{ current_user.username }}">Профиль</a>
+            <a href="/logout">Выйти</a>
+        </div>
+    </nav>
+    
+    <div class="profile-container">
+        <div class="profile-header">
+            <div class="avatar">👤</div>
+            <div class="profile-info">
+                <h2>{{ user.username }}</h2>
+                <p class="bio">{{ user.bio or 'Пользователь GO World' }}</p>
+                <div class="stats">
+                    <span>📝 {{ user.get_posts()|length }} постов</span>
+                    <span>👥 {{ followers_count }} подписчиков</span>
+                    <span>👣 {{ following_count }} подписок</span>
+                </div>
+                {% if current_user.id != user.id %}
+                    {% if is_following %}
+                        <a href="/unfollow/{{ user.username }}" class="btn">Отписаться</a>
+                    {% else %}
+                        <a href="/follow/{{ user.username }}" class="btn">Подписаться</a>
+                    {% endif %}
+                {% else %}
+                    <a href="#" class="btn btn-outline">Редактировать профиль</a>
+                {% endif %}
+            </div>
+        </div>
+        
+        <div class="user-posts">
+            <h3>Посты {{ user.username }}</h3>
+            {% for post in user.get_posts() %}
+            <div class="post">
+                <div class="post-content">{{ post.content }}</div>
+                <div class="post-footer">
+                    <small>{{ post.created_at.strftime('%d.%m.%Y %H:%M') }}</small>
+                    <span>❤️ {{ post.likes }}</span>
+                </div>
+            </div>
+            {% else %}
+            <p>Нет постов</p>
+            {% endfor %}
+        </div>
+    </div>
+</body>
+</html>
