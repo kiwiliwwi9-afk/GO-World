@@ -2,6 +2,7 @@ from flask import Flask, render_template, request, redirect, url_for, flash
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
+from datetime import datetime
 import os
 
 app = Flask(__name__)
@@ -22,6 +23,13 @@ class User(UserMixin, db.Model):
     password = db.Column(db.String(200), nullable=False)
     bio = db.Column(db.String(300), default='')
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+class Post(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    content = db.Column(db.Text, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    author = db.relationship('User', backref=db.backref('posts', lazy=True))
 
 @login_manager.user_loader
 def load_user(user_id):
@@ -82,7 +90,19 @@ def logout():
 @app.route('/feed')
 @login_required
 def feed():
-    return render_template('feed.html')
+    posts = Post.query.order_by(Post.created_at.desc()).all()
+    return render_template('feed.html', posts=posts)
+
+@app.route('/post', methods=['POST'])
+@login_required
+def create_post():
+    content = request.form['content']
+    if content:
+        post = Post(user_id=current_user.id, content=content)
+        db.session.add(post)
+        db.session.commit()
+        flash('Пост опубликован!', 'success')
+    return redirect(url_for('feed'))
 
 if __name__ == '__main__':
     with app.app_context():
