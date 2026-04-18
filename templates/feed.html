@@ -2,67 +2,62 @@
 <html>
 <head>
     <title>Лента — GO World</title>
-    <style>
-        body {
-            font-family: Arial;
-            padding: 20px;
-            background: linear-gradient(135deg, #667eea, #764ba2);
-            color: white;
-        }
-        .container {
-            max-width: 600px;
-            margin: 0 auto;
-        }
-        .post {
-            background: rgba(255,255,255,0.1);
-            padding: 15px;
-            border-radius: 15px;
-            margin-bottom: 15px;
-        }
-        textarea {
-            width: 100%;
-            padding: 10px;
-            border-radius: 10px;
-            border: none;
-        }
-        .btn {
-            background: white;
-            color: #667eea;
-            padding: 10px 20px;
-            border-radius: 20px;
-            text-decoration: none;
-            border: none;
-            margin-top: 10px;
-        }
-        .logout {
-            color: white;
-            text-decoration: none;
-            float: right;
-        }
-    </style>
+    <link rel="stylesheet" href="/static/style.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
 </head>
 <body>
-    <div class="container">
-        <a href="/logout" class="logout">Выйти</a>
-        <h1>GO World</h1>
-        <h2>Привет, {{ current_user.username }}!</h2>
-        
-        <h3>Что нового?</h3>
-        <form method="POST" action="/post">
-            <textarea name="content" placeholder="Напиши пост..." rows="3" required></textarea>
-            <button type="submit" class="btn">Опубликовать</button>
-        </form>
-        
-        <h3>Лента</h3>
-        {% for post in posts %}
-        <div class="post">
-            <strong>{{ post.author.username }}</strong>
-            <p>{{ post.content }}</p>
-            <small>{{ post.created_at.strftime('%d.%m.%Y %H:%M') }}</small>
+    <nav class="navbar">
+        <div class="nav-brand">🌍 GO World</div>
+        <div class="nav-links">
+            <a href="/feed">Лента</a>
+            <a href="/search">🔍 Найти</a>
+            <a href="/profile/{{ current_user.username }}">Профиль</a>
+            <a href="/logout">Выйти</a>
         </div>
-        {% else %}
-        <p>Нет постов. Напиши первый!</p>
-        {% endfor %}
+    </nav>
+    
+    <div class="feed-container">
+        <div class="create-post">
+            <h3>Что нового?</h3>
+            <form method="POST" action="/post" enctype="multipart/form-data">
+                <textarea name="content" placeholder="Напиши пост..." required></textarea>
+                <input type="file" name="image" accept="image/*" style="margin:10px 0;">
+                <button type="submit" class="btn">Опубликовать</button>
+            </form>
+        </div>
+        
+        <div class="posts">
+            {% for post in posts %}
+            <div class="post">
+                <div class="post-header">
+                    <div>
+                        <strong>{{ post.author.username }}</strong>
+                        <small>{{ post.created_at.strftime('%d.%m.%Y %H:%M') }}</small>
+                    </div>
+                    {% if post.author.username != current_user.username %}
+                        {% if post.is_following %}
+                            <a href="/unfollow/{{ post.author.username }}?next=feed" class="unfollow-btn">✓ Подписан</a>
+                        {% else %}
+                            <a href="/follow/{{ post.author.username }}?next=feed" class="follow-btn">+ Подписаться</a>
+                        {% endif %}
+                    {% endif %}
+                </div>
+                <div class="post-content">{{ post.content }}</div>
+                {% if post.image %}
+                    <img src="{{ post.image }}" alt="post image" style="max-width:100%; border-radius:10px; margin-top:10px;">
+                {% endif %}
+                <div class="post-actions">
+                    {% if post.user_liked %}
+                        <a href="/like/{{ post.id }}" class="like-btn liked">❤️ {{ post.likes }}</a>
+                    {% else %}
+                        <a href="/like/{{ post.id }}" class="like-btn">🤍 {{ post.likes }}</a>
+                    {% endif %}
+                </div>
+            </div>
+            {% else %}
+            <p>Нет постов. Подпишись на кого-нибудь или напиши первый пост!</p>
+            {% endfor %}
+        </div>
     </div>
 </body>
 </html>
