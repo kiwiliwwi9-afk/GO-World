@@ -74,7 +74,6 @@ h2, h3 {
     background: #8a2be2;
 }
 
-/* ===== НАВИГАЦИЯ ===== */
 .navbar {
     display: flex;
     justify-content: space-between;
@@ -106,7 +105,6 @@ h2, h3 {
     text-decoration: underline;
 }
 
-/* ===== ЛЕНТА И ПРОФИЛЬ ===== */
 .feed-container, .profile-container {
     max-width: 700px;
     margin: 30px auto;
@@ -169,7 +167,6 @@ h2, h3 {
     opacity: 0.7;
 }
 
-/* ===== ПРОФИЛЬ ===== */
 .profile-header {
     display: flex;
     gap: 30px;
@@ -211,7 +208,6 @@ h2, h3 {
     background: rgba(255,255,255,0.05);
 }
 
-/* ===== ФОРМЫ ===== */
 form {
     display: flex;
     flex-direction: column;
@@ -225,7 +221,6 @@ input, textarea {
     font-size: 16px;
 }
 
-/* ===== АЛЕРТЫ ===== */
 .alert {
     padding: 10px;
     border-radius: 8px;
@@ -247,7 +242,6 @@ input, textarea {
     border: 1px solid #00ffff;
 }
 
-/* ===== КНОПКИ ПОДПИСКИ ===== */
 .follow-btn, .unfollow-btn {
     font-size: 12px;
     padding: 4px 10px;
@@ -269,7 +263,42 @@ input, textarea {
     background: rgba(255,0,0,0.5);
 }
 
-/* ===== МОБИЛЬНАЯ ВЕРСИЯ (ВСЕ СТРАНИЦЫ) ===== */
+/* ===== АДАПТАЦИЯ ДЛЯ ВСЕХ УСТРОЙСТВ ===== */
+/* ПК (широкие экраны) */
+@media (min-width: 1024px) {
+    .container {
+        max-width: 800px;
+    }
+    
+    h1 {
+        font-size: 64px;
+    }
+    
+    .logo {
+        font-size: 100px;
+    }
+    
+    .feed-container, .profile-container {
+        max-width: 900px;
+    }
+    
+    .post {
+        padding: 25px;
+    }
+}
+
+/* Планшеты */
+@media (min-width: 769px) and (max-width: 1023px) {
+    .container {
+        max-width: 600px;
+    }
+    
+    .feed-container, .profile-container {
+        max-width: 750px;
+    }
+}
+
+/* Телефоны (уже было, оставляем) */
 @media (max-width: 768px) {
     .container {
         padding: 30px 15px;
