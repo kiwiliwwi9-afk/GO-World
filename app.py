@@ -1,24 +1,26 @@
-from flask import Flask, render_template, request, redirect, url_for, flash
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 from datetime import datetime
 import os
+import aiohttp
+import asyncio
 
 app = Flask(__name__)
 app.secret_key = 'sekretnyi-klyuch-go-world'
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///go_world.db'
+
+# База данных
+database_url = os.environ.get('DATABASE_URL', 'sqlite:///go_world.db')
+app.config['SQLALCHEMY_DATABASE_URI'] = database_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-# Настройки для загрузки файлов
+# Загрузка файлов
 UPLOAD_FOLDER = 'static/uploads'
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-
-def allowed_file(filename):
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 db = SQLAlchemy(app)
 login_manager = LoginManager()
@@ -31,9 +33,12 @@ class User(UserMixin, db.Model):
     username = db.Column(db.String(80), unique=True, nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=False)
     password = db.Column(db.String(200), nullable=False)
-    avatar = db.Column(db.String(200), default='')
+    avatar = db.Column(db.String(200), default='/static/default-avatar.png')
     bio = db.Column(db.String(300), default='')
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    def get_posts(self):
+        return Post.query.filter_by(user_id=self.id).order_by(Post.created_at.desc()).all()
 
 class Post(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -52,13 +57,41 @@ class Follow(db.Model):
 
 class Like(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, nullable=False)
-    post_id = db.Column(db.Integer, nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    post_id = db.Column(db.Integer, db.ForeignKey('post.id'), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 @login_manager.user_loader
 def load_user(user_id):
     return User.query.get(int(user_id))
+
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+# ========== ФУНКЦИЯ ДЛЯ МАРГО ==========
+GROQ_KEY = os.environ.get("GROQ_KEY")
+
+async def ask_groq_for_web(question, username):
+    if not GROQ_KEY:
+        return "🤍 марGO пока не настроена"
+    
+    url = "https://api.groq.com/openai/v1/chat/completions"
+    headers = {"Authorization": f"Bearer {GROQ_KEY}", "Content-Type": "application/json"}
+    payload = {
+        "model": "llama-3.3-70b-versatile",
+        "messages": [{"role": "user", "content": f"Пользователь {username} спрашивает: {question}. Ответь кратко и дружелюбно, как марGO. Если просят нарисовать картинку, скажи что я бот в чате и не могу рисовать, но могу помочь с текстом."}],
+        "max_tokens": 300,
+        "temperature": 0.8
+    }
+    try:
+        async with aiohttp.ClientSession() as s:
+            async with s.post(url, headers=headers, json=payload, timeout=30) as r:
+                if r.status == 200:
+                    data = await r.json()
+                    return data['choices'][0]['message']['content']
+                return "Извини, я сейчас не могу ответить. Попробуй позже 🤍"
+    except Exception as e:
+        return "Ошибка подключения. Проверь интернет 🤍"
 
 # ========== РОУТЫ ==========
 @app.route('/')
@@ -124,10 +157,7 @@ def feed():
             follower_id=current_user.id, 
             followed_id=post.user_id
         ).first() is not None
-        post.user_liked = Like.query.filter_by(
-            user_id=current_user.id, 
-            post_id=post.id
-        ).first() is not None
+        post.user_liked = Like.query.filter_by(user_id=current_user.id, post_id=post.id).first() is not None
     
     return render_template('feed.html', posts=posts)
 
@@ -140,7 +170,7 @@ def create_post():
     if 'image' in request.files:
         file = request.files['image']
         if file and allowed_file(file.filename):
-            filename = secure_filename(f"{current_user.id}_{int(datetime.now().timestamp())}_{file.filename}")
+            filename = secure_filename(f"{current_user.id}_{int(datetime.utcnow().timestamp())}_{file.filename}")
             file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
             image = f"/static/uploads/{filename}"
     
@@ -236,8 +266,22 @@ def search():
         users = User.query.filter(User.username.contains(query), User.id != current_user.id).limit(20).all()
     return render_template('search.html', users=users, query=query)
 
+@app.route('/api/margo', methods=['POST'])
+@login_required
+def api_margo():
+    data = request.get_json()
+    question = data.get('question', '')
+    username = current_user.username
+    
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    answer = loop.run_until_complete(ask_groq_for_web(question, username))
+    loop.close()
+    
+    return jsonify({'answer': answer})
+
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
     port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port)
+    app.run(host='0.0.0.0', port=port, debug=False)
