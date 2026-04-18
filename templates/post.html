@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>{{ user.username }} — GO World</title>
+    <title>Лента — GO World</title>
     <link rel="stylesheet" href="/static/style.css">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 </head>
@@ -9,52 +9,134 @@
     <nav class="navbar">
         <div class="nav-brand">🌍 GO World</div>
         <div class="nav-links">
-            <span>Привет, {{ current_user.username }}!</span>
             <a href="/feed">Лента</a>
             <a href="/profile/{{ current_user.username }}">Профиль</a>
-            <a href="/search">Поиск</a>
+            <a href="/search">🔍 Найти</a>
             <a href="/logout">Выйти</a>
         </div>
     </nav>
-    
-    <div class="profile-container">
-        <div class="profile-header">
-            <div class="avatar">👤</div>
-            <div class="profile-info">
-                <h2>{{ user.username }}</h2>
-                <p class="bio">{{ user.bio or 'Пользователь GO World' }}</p>
-                <div class="stats">
-                    <span>📝 {{ user.get_posts()|length }} постов</span>
-                    <span>👥 {{ followers_count }} подписчиков</span>
-                    <span>👣 {{ following_count }} подписок</span>
-                </div>
-                {% if current_user.id != user.id %}
-                    {% if is_following %}
-                        <a href="/unfollow/{{ user.username }}?next=profile" class="btn">Отписаться</a>
-                    {% else %}
-                        <a href="/follow/{{ user.username }}?next=profile" class="btn">Подписаться</a>
-                    {% endif %}
-                {% else %}
-                    <a href="/profile/edit" class="btn btn-outline">Редактировать профиль</a>
-                {% endif %}
-            </div>
+
+    <div class="feed-container">
+        <div class="create-post">
+            <h3>Что нового?</h3>
+            <form method="POST" action="/post" enctype="multipart/form-data">
+                <textarea name="content" placeholder="Напиши пост..." required></textarea>
+                <input type="file" name="image" accept="image/*">
+                <button type="submit" class="btn">Опубликовать</button>
+            </form>
         </div>
-        
-        <div class="user-posts">
-            <h3>Посты {{ user.username }}</h3>
-            {% for post in user.get_posts() %}
+
+        <div class="posts">
+            {% for post in posts %}
             <div class="post">
-                <div class="post-content">{{ post.content }}</div>
-                <div class="post-footer">
+                <div class="post-header">
+                    <a href="/profile/{{ post.author.username }}" style="color:white; text-decoration:none;">
+                        <strong>{{ post.author.username }}</strong>
+                    </a>
                     <small>{{ post.created_at.strftime('%d.%m.%Y %H:%M') }}</small>
-                    <span>❤️ {{ post.likes }}</span>
-                    <a href="/post/{{ post.id }}" class="comment-btn">💬 {{ post.comments|length }}</a>
+                </div>
+                <div class="post-content">{{ post.content }}</div>
+                {% if post.image %}
+                    <img src="{{ post.image }}" class="post-image">
+                {% endif %}
+                <div class="post-actions">
+                    <a href="/like/{{ post.id }}" class="like-btn">
+                        {% if post.user_liked %}❤️{% else %}🤍{% endif %} {{ post.likes_count }}
+                    </a>
+                </div>
+                
+                <!-- Комментарии -->
+                <div class="comments">
+                    {% for comment in post.comments %}
+                    <div class="comment">
+                        <strong>{{ comment.author.username }}</strong> {{ comment.text }}
+                        <small>{{ comment.created_at.strftime('%H:%M') }}</small>
+                    </div>
+                    {% endfor %}
+                    <form method="POST" action="/comment/{{ post.id }}" class="comment-form">
+                        <input type="text" name="text" placeholder="Написать комментарий..." required>
+                        <button type="submit">→</button>
+                    </form>
                 </div>
             </div>
             {% else %}
-            <p>Нет постов</p>
+            <p>Нет постов. Подпишись на кого-нибудь!</p>
             {% endfor %}
         </div>
     </div>
+
+    <!-- марGO чат -->
+    <div id="margo-chat">
+        <div id="margo-toggle">🤍</div>
+        <div id="margo-window">
+            <div class="margo-header">🤍 марGO <span id="margo-close">✕</span></div>
+            <div id="margo-messages"></div>
+            <div class="margo-input">
+                <input type="text" id="margo-input-field" placeholder="Спроси марGO...">
+                <button id="margo-send">→</button>
+            </div>
+        </div>
+    </div>
+
+    <style>
+        #margo-chat { position: fixed; bottom: 20px; right: 20px; z-index: 1000; }
+        #margo-toggle { background: #8a2be2; width: 55px; height: 55px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 28px; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
+        #margo-window { display: none; position: absolute; bottom: 70px; right: 0; width: 320px; height: 450px; background: #1a1a2e; border-radius: 15px; flex-direction: column; overflow: hidden; }
+        .margo-header { background: #8a2be2; padding: 12px; display: flex; justify-content: space-between; cursor: pointer; }
+        #margo-messages { flex: 1; padding: 12px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; }
+        .margo-input { display: flex; padding: 12px; gap: 8px; background: #0f0c29; }
+        .margo-input input { flex: 1; padding: 8px; border-radius: 20px; border: none; }
+        .margo-input button { background: #8a2be2; border: none; border-radius: 20px; padding: 8px 16px; color: white; cursor: pointer; }
+        .msg-user { background: #8a2be2; align-self: flex-end; padding: 8px 12px; border-radius: 15px; max-width: 85%; }
+        .msg-bot { background: #302b63; align-self: flex-start; padding: 8px 12px; border-radius: 15px; max-width: 85%; }
+        .post-image { max-width: 100%; border-radius: 10px; margin-top: 10px; }
+        .comments { margin-top: 12px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 10px; }
+        .comment { font-size: 13px; padding: 5px 0; }
+        .comment-form { display: flex; gap: 8px; margin-top: 8px; }
+        .comment-form input { flex: 1; padding: 6px; border-radius: 20px; border: none; }
+        .comment-form button { background: #8a2be2; border: none; border-radius: 20px; padding: 6px 12px; color: white; }
+    </style>
+
+    <script>
+        const toggle = document.getElementById('margo-toggle');
+        const windowEl = document.getElementById('margo-window');
+        const closeBtn = document.getElementById('margo-close');
+        const sendBtn = document.getElementById('margo-send');
+        const input = document.getElementById('margo-input-field');
+        const messages = document.getElementById('margo-messages');
+
+        toggle.onclick = () => windowEl.style.display = windowEl.style.display === 'flex' ? 'none' : 'flex';
+        closeBtn.onclick = () => windowEl.style.display = 'none';
+
+        function addMessage(text, isUser = false) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            div.className = isUser ? 'msg-user' : 'msg-bot';
+            messages.appendChild(div);
+            messages.scrollTop = messages.scrollHeight;
+        }
+
+        async function askMargo(q) {
+            addMessage(q, true);
+            input.value = '';
+            addMessage('🤍 Думаю...');
+            try {
+                const res = await fetch('/api/margo', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ question: q })
+                });
+                const data = await res.json();
+                messages.removeChild(messages.lastChild);
+                addMessage(data.answer);
+            } catch(e) {
+                messages.removeChild(messages.lastChild);
+                addMessage('❌ Ошибка');
+            }
+        }
+
+        sendBtn.onclick = () => { if(input.value.trim()) askMargo(input.value.trim()); };
+        input.onkeypress = (e) => { if(e.key === 'Enter' && input.value.trim()) askMargo(input.value.trim()); };
+    </script>
 </body>
 </html>
