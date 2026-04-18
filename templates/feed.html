@@ -2,8 +2,9 @@
 <html>
 <head>
     <title>Лента — GO World</title>
-    <link rel="stylesheet" href="/static/style.css">
+    <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
     <nav class="navbar">
@@ -12,7 +13,6 @@
             <span>Привет, {{ current_user.username }}!</span>
             <a href="/feed">Лента</a>
             <a href="/profile/{{ current_user.username }}">Профиль</a>
-            <a href="/search">Поиск</a>
             <a href="/logout">Выйти</a>
         </div>
     </nav>
@@ -31,9 +31,7 @@
             <div class="post">
                 <div class="post-header">
                     <div>
-                        <a href="/profile/{{ post.author.username }}" class="profile-link">
-                            <strong>{{ post.author.username }}</strong>
-                        </a>
+                        <strong>{{ post.author.username }}</strong>
                         <small>{{ post.created_at.strftime('%d.%m.%Y %H:%M') }}</small>
                     </div>
                     
@@ -48,25 +46,6 @@
                 <div class="post-content">{{ post.content }}</div>
                 <div class="post-actions">
                     <a href="/like/{{ post.id }}" class="like-btn">❤️ {{ post.likes }}</a>
-                    <a href="/post/{{ post.id }}" class="comment-btn">💬 {{ post.comments|length }}</a>
-                </div>
-                
-                <div class="comment-section">
-                    <form method="POST" action="/comment/{{ post.id }}">
-                        <input type="text" name="content" placeholder="Написать комментарий..." class="comment-input">
-                        <button type="submit" class="comment-submit">💬</button>
-                    </form>
-                    <div class="comments">
-                        {% for comment in post.comments[:3] %}
-                            <div class="comment">
-                                <strong><a href="/profile/{{ comment.author.username }}" class="profile-link">{{ comment.author.username }}</a></strong>
-                                <span>{{ comment.content }}</span>
-                            </div>
-                        {% endfor %}
-                        {% if post.comments|length > 3 %}
-                            <a href="/post/{{ post.id }}" class="more-comments">Показать все {{ post.comments|length }} комментариев</a>
-                        {% endif %}
-                    </div>
                 </div>
             </div>
             {% else %}
