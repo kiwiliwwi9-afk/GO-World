@@ -75,12 +75,35 @@ class Message(db.Model):
     sender = db.relationship('User', foreign_keys=[sender_id])
     receiver = db.relationship('User', foreign_keys=[receiver_id])
 
+class Notification(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    type = db.Column(db.String(50))  # 'like', 'follow', 'message'
+    from_user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    post_id = db.Column(db.Integer, db.ForeignKey('post.id'), nullable=True)
+    is_read = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    user = db.relationship('User', foreign_keys=[user_id])
+    from_user = db.relationship('User', foreign_keys=[from_user_id])
+    post = db.relationship('Post')
+
 @login_manager.user_loader
 def load_user(user_id):
     return User.query.get(int(user_id))
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+def create_notification(user_id, type, from_user_id, post_id=None):
+    notif = Notification(
+        user_id=user_id,
+        type=type,
+        from_user_id=from_user_id,
+        post_id=post_id
+    )
+    db.session.add(notif)
+    db.session.commit()
 
 # ========== ОНЛАЙН-СТАТУС ==========
 @app.before_request
@@ -225,6 +248,9 @@ def like(post_id):
         new_like = Like(user_id=current_user.id, post_id=post_id)
         db.session.add(new_like)
         post.likes += 1
+        # Уведомление о лайке
+        if post.user_id != current_user.id:
+            create_notification(post.user_id, 'like', current_user.id, post.id)
     
     db.session.commit()
     return redirect(request.referrer or url_for('feed'))
@@ -298,6 +324,8 @@ def follow(username):
             follow = Follow(follower_id=current_user.id, followed_id=user.id)
             db.session.add(follow)
             db.session.commit()
+            # Уведомление о подписке
+            create_notification(user.id, 'follow', current_user.id)
             flash(f'Вы подписались на {username}', 'success')
     
     next_page = request.args.get('next', 'feed')
@@ -409,7 +437,27 @@ def send_message(username):
         msg = Message(sender_id=current_user.id, receiver_id=other.id, content=content)
         db.session.add(msg)
         db.session.commit()
+        # Уведомление о сообщении
+        if other.id != current_user.id:
+            create_notification(other.id, 'message', current_user.id)
     return redirect(url_for('chat', username=username))
+
+# ========== УВЕДОМЛЕНИЯ ==========
+@app.route('/notifications')
+@login_required
+def notifications():
+    notifs = Notification.query.filter_by(user_id=current_user.id).order_by(Notification.created_at.desc()).all()
+    for n in notifs:
+        n.is_read = True
+    db.session.commit()
+    return render_template('notifications.html', notifs=notifs)
+
+def get_unread_count():
+    if current_user.is_authenticated:
+        return Notification.query.filter_by(user_id=current_user.id, is_read=False).count()
+    return 0
+
+app.jinja_env.globals.update(get_unread_count=get_unread_count)
 
 # ========== API ДЛЯ МАРГО ==========
 @app.route('/api/margo', methods=['POST'])
@@ -425,9 +473,7 @@ def api_margo():
     loop.close()
     
     return jsonify({'answer': answer})
-with app.app_context():
-    db.create_all()
-    print("Таблицы созданы")
+
 # ========== ЗАПУСК ==========
 if __name__ == '__main__':
     with app.app_context():
