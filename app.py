@@ -64,12 +64,38 @@ class Comment(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     author = db.relationship('User', backref=db.backref('comments', lazy=True))
 
+class Message(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    sender_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    receiver_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    content = db.Column(db.Text, nullable=False)
+    is_read = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    sender = db.relationship('User', foreign_keys=[sender_id])
+    receiver = db.relationship('User', foreign_keys=[receiver_id])
+
+class Notification(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    type = db.Column(db.String(50), nullable=False)
+    from_user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    post_id = db.Column(db.Integer, db.ForeignKey('post.id'), nullable=True)
+    is_read = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    user = db.relationship('User', foreign_keys=[user_id])
+    from_user = db.relationship('User', foreign_keys=[from_user_id])
+
 @login_manager.user_loader
 def load_user(user_id):
     return User.query.get(int(user_id))
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+def create_notification(user_id, type, from_user_id, post_id=None):
+    notif = Notification(user_id=user_id, type=type, from_user_id=from_user_id, post_id=post_id)
+    db.session.add(notif)
+    db.session.commit()
 
 # ========== МАРГО ==========
 GROQ_KEY = os.environ.get("GROQ_KEY")
@@ -81,7 +107,7 @@ async def ask_groq_for_web(question, username):
     headers = {"Authorization": f"Bearer {GROQ_KEY}", "Content-Type": "application/json"}
     payload = {
         "model": "llama-3.3-70b-versatile",
-        "messages": [{"role": "user", "content": f"Пользователь {username} спрашивает: {question}. Ответь кратко и дружелюбно."}],
+        "messages": [{"role": "user", "content": f"Пользователь {username} спрашивает: {question}"}],
         "max_tokens": 300,
         "temperature": 0.8
     }
@@ -151,7 +177,9 @@ def feed():
         post.is_following = Follow.query.filter_by(follower_id=current_user.id, followed_id=post.user_id).first() is not None
         post.is_author = (post.user_id == current_user.id)
         post.comments = Comment.query.filter_by(post_id=post.id).order_by(Comment.created_at.asc()).all()
-    return render_template('feed.html', posts=posts)
+    notif_count = Notification.query.filter_by(user_id=current_user.id, is_read=False).count()
+    msg_count = Message.query.filter_by(receiver_id=current_user.id, is_read=False).count()
+    return render_template('feed.html', posts=posts, notif_count=notif_count, msg_count=msg_count)
 
 @app.route('/post', methods=['POST'])
 @login_required
@@ -183,6 +211,8 @@ def like(post_id):
         new = Like(user_id=current_user.id, post_id=post_id)
         db.session.add(new)
         post.likes += 1
+        if post.user_id != current_user.id:
+            create_notification(post.user_id, 'like', current_user.id, post_id)
     db.session.commit()
     return redirect(request.referrer or url_for('feed'))
 
@@ -191,9 +221,12 @@ def like(post_id):
 def add_comment(post_id):
     content = request.form['content']
     if content:
+        post = Post.query.get(post_id)
         comment = Comment(user_id=current_user.id, post_id=post_id, content=content)
         db.session.add(comment)
         db.session.commit()
+        if post.user_id != current_user.id:
+            create_notification(post.user_id, 'comment', current_user.id, post_id)
         flash('Комментарий добавлен', 'success')
     return redirect(request.referrer or url_for('feed'))
 
@@ -265,6 +298,7 @@ def follow(username):
         if not Follow.query.filter_by(follower_id=current_user.id, followed_id=user.id).first():
             db.session.add(Follow(follower_id=current_user.id, followed_id=user.id))
             db.session.commit()
+            create_notification(user.id, 'follow', current_user.id)
             flash(f'Вы подписались на {username}', 'success')
     return redirect(request.referrer or url_for('feed'))
 
@@ -301,6 +335,55 @@ def search():
     query = request.args.get('q', '')
     users = User.query.filter(User.username.contains(query), User.id != current_user.id).limit(20).all() if query else []
     return render_template('search.html', users=users, query=query)
+
+@app.route('/messages')
+@login_required
+def messages():
+    dialogs = {}
+    sent = Message.query.filter_by(sender_id=current_user.id).all()
+    received = Message.query.filter_by(receiver_id=current_user.id).all()
+    for msg in sent:
+        dialogs[msg.receiver_id] = msg
+    for msg in received:
+        if msg.sender_id not in dialogs or dialogs[msg.sender_id].created_at < msg.created_at:
+            dialogs[msg.sender_id] = msg
+    dialog_list = []
+    for uid, msg in sorted(dialogs.items(), key=lambda x: x[1].created_at, reverse=True):
+        other = User.query.get(uid)
+        unread = Message.query.filter_by(sender_id=uid, receiver_id=current_user.id, is_read=False).count()
+        dialog_list.append({'user': other, 'last_msg': msg, 'unread': unread})
+    return render_template('messages.html', dialogs=dialog_list)
+
+@app.route('/messages/<username>')
+@login_required
+def chat(username):
+    other = User.query.filter_by(username=username).first_or_404()
+    Message.query.filter_by(sender_id=other.id, receiver_id=current_user.id, is_read=False).update({'is_read': True})
+    db.session.commit()
+    msgs = Message.query.filter(
+        ((Message.sender_id == current_user.id) & (Message.receiver_id == other.id)) |
+        ((Message.sender_id == other.id) & (Message.receiver_id == current_user.id))
+    ).order_by(Message.created_at.asc()).all()
+    return render_template('chat.html', other=other, messages=msgs)
+
+@app.route('/send_message/<username>', methods=['POST'])
+@login_required
+def send_message(username):
+    other = User.query.filter_by(username=username).first_or_404()
+    content = request.form['content']
+    if content:
+        msg = Message(sender_id=current_user.id, receiver_id=other.id, content=content)
+        db.session.add(msg)
+        db.session.commit()
+    return redirect(url_for('chat', username=username))
+
+@app.route('/notifications')
+@login_required
+def notifications():
+    notifs = Notification.query.filter_by(user_id=current_user.id).order_by(Notification.created_at.desc()).all()
+    Notification.query.filter_by(user_id=current_user.id, is_read=False).update({'is_read': True})
+    db.session.commit()
+    return render_template('notifications.html', notifications=notifs)
 
 @app.route('/api/margo', methods=['POST'])
 @login_required
