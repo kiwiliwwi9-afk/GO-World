@@ -1,9 +1,5 @@
 flask
 flask-sqlalchemy
 flask-login
-werkzeug
-pillow
-requests
-psycopg2-binary
-gunicorn
 aiohttp
+gunicorn
