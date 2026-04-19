@@ -7,14 +7,9 @@ from datetime import datetime
 import os
 import aiohttp
 import asyncio
-import sys
 
 app = Flask(__name__)
 app.secret_key = 'sekretnyi-klyuch-go-world'
-
-# Фикс для Python 3.14
-if sys.version_info >= (3, 14):
-    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
 # База данных
 database_url = os.environ.get('DATABASE_URL', 'sqlite:///go_world.db')
@@ -41,9 +36,6 @@ class User(UserMixin, db.Model):
     avatar = db.Column(db.String(200), default='/static/default-avatar.png')
     bio = db.Column(db.String(300), default='')
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    
-    def get_posts(self):
-        return Post.query.filter_by(user_id=self.id).order_by(Post.created_at.desc()).all()
 
 class Post(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -52,7 +44,6 @@ class Post(db.Model):
     image = db.Column(db.String(200), nullable=True)
     likes = db.Column(db.Integer, default=0)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    
     author = db.relationship('User', backref=db.backref('posts', lazy=True))
 
 class Follow(db.Model):
@@ -64,7 +55,6 @@ class Like(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     post_id = db.Column(db.Integer, db.ForeignKey('post.id'), nullable=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 class Comment(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -72,7 +62,6 @@ class Comment(db.Model):
     post_id = db.Column(db.Integer, db.ForeignKey('post.id'), nullable=False)
     content = db.Column(db.Text, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    
     author = db.relationship('User', backref=db.backref('comments', lazy=True))
 
 @login_manager.user_loader
@@ -82,18 +71,17 @@ def load_user(user_id):
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
-# ========== ФУНКЦИЯ ДЛЯ МАРГО ==========
+# ========== МАРГО ==========
 GROQ_KEY = os.environ.get("GROQ_KEY")
 
 async def ask_groq_for_web(question, username):
     if not GROQ_KEY:
         return "🤍 марGO пока не настроена"
-    
     url = "https://api.groq.com/openai/v1/chat/completions"
     headers = {"Authorization": f"Bearer {GROQ_KEY}", "Content-Type": "application/json"}
     payload = {
         "model": "llama-3.3-70b-versatile",
-        "messages": [{"role": "user", "content": f"Пользователь {username} спрашивает: {question}. Ответь кратко и дружелюбно, как марGO."}],
+        "messages": [{"role": "user", "content": f"Пользователь {username} спрашивает: {question}. Ответь кратко и дружелюбно."}],
         "max_tokens": 300,
         "temperature": 0.8
     }
@@ -103,7 +91,7 @@ async def ask_groq_for_web(question, username):
                 if r.status == 200:
                     data = await r.json()
                     return data['choices'][0]['message']['content']
-                return "Извини, я сейчас не могу ответить 🤍"
+                return "Извини, не могу ответить 🤍"
     except:
         return "Ошибка подключения 🤍"
 
@@ -118,22 +106,18 @@ def register():
         username = request.form['username']
         email = request.form['email']
         password = request.form['password']
-        
         if User.query.filter_by(username=username).first():
             flash('Имя уже занято', 'danger')
             return redirect(url_for('register'))
         if User.query.filter_by(email=email).first():
             flash('Email уже используется', 'danger')
             return redirect(url_for('register'))
-        
         hashed = generate_password_hash(password)
         user = User(username=username, email=email, password=hashed)
         db.session.add(user)
         db.session.commit()
-        
         flash('Регистрация успешна! Войдите', 'success')
         return redirect(url_for('login'))
-    
     return render_template('register.html')
 
 @app.route('/login', methods=['GET', 'POST'])
@@ -142,14 +126,12 @@ def login():
         username = request.form['username']
         password = request.form['password']
         user = User.query.filter_by(username=username).first()
-        
         if user and check_password_hash(user.password, password):
             login_user(user)
             flash(f'Добро пожаловать, {username}!', 'success')
             return redirect(url_for('feed'))
         else:
             flash('Неверное имя или пароль', 'danger')
-    
     return render_template('login.html')
 
 @app.route('/logout')
@@ -162,33 +144,26 @@ def logout():
 @app.route('/feed')
 @login_required
 def feed():
-    try:
-        followed_ids = [f.followed_id for f in Follow.query.filter_by(follower_id=current_user.id).all()]
-        followed_ids.append(current_user.id)
-        posts = Post.query.filter(Post.user_id.in_(followed_ids)).order_by(Post.created_at.desc()).all()
-        
-        for post in posts:
-            post.is_following = Follow.query.filter_by(follower_id=current_user.id, followed_id=post.user_id).first() is not None
-            post.is_author = (post.user_id == current_user.id)
-            post.comments = Comment.query.filter_by(post_id=post.id).order_by(Comment.created_at.asc()).all()
-        
-        return render_template('feed.html', posts=posts)
-    except Exception as e:
-        return f"Ошибка в feed: {str(e)}", 500
+    followed_ids = [f.followed_id for f in Follow.query.filter_by(follower_id=current_user.id).all()]
+    followed_ids.append(current_user.id)
+    posts = Post.query.filter(Post.user_id.in_(followed_ids)).order_by(Post.created_at.desc()).all()
+    for post in posts:
+        post.is_following = Follow.query.filter_by(follower_id=current_user.id, followed_id=post.user_id).first() is not None
+        post.is_author = (post.user_id == current_user.id)
+        post.comments = Comment.query.filter_by(post_id=post.id).order_by(Comment.created_at.asc()).all()
+    return render_template('feed.html', posts=posts)
 
 @app.route('/post', methods=['POST'])
 @login_required
 def create_post():
     content = request.form['content']
     image = None
-    
     if 'image' in request.files:
         file = request.files['image']
         if file and allowed_file(file.filename):
             filename = secure_filename(f"{current_user.id}_{int(datetime.utcnow().timestamp())}_{file.filename}")
             file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
             image = f"/static/uploads/{filename}"
-    
     if content:
         post = Post(user_id=current_user.id, content=content, image=image)
         db.session.add(post)
@@ -200,24 +175,20 @@ def create_post():
 @login_required
 def like(post_id):
     post = Post.query.get_or_404(post_id)
-    
-    existing_like = Like.query.filter_by(user_id=current_user.id, post_id=post_id).first()
-    
-    if existing_like:
-        db.session.delete(existing_like)
+    existing = Like.query.filter_by(user_id=current_user.id, post_id=post_id).first()
+    if existing:
+        db.session.delete(existing)
         post.likes -= 1
     else:
-        new_like = Like(user_id=current_user.id, post_id=post_id)
-        db.session.add(new_like)
+        new = Like(user_id=current_user.id, post_id=post_id)
+        db.session.add(new)
         post.likes += 1
-    
     db.session.commit()
     return redirect(request.referrer or url_for('feed'))
 
 @app.route('/comment/<int:post_id>', methods=['POST'])
 @login_required
 def add_comment(post_id):
-    post = Post.query.get_or_404(post_id)
     content = request.form['content']
     if content:
         comment = Comment(user_id=current_user.id, post_id=post_id, content=content)
@@ -233,7 +204,6 @@ def delete_comment(comment_id):
     if comment.user_id != current_user.id:
         flash('Это не твой комментарий!', 'danger')
         return redirect(request.referrer or url_for('feed'))
-    
     db.session.delete(comment)
     db.session.commit()
     flash('Комментарий удалён', 'info')
@@ -246,28 +216,21 @@ def edit_post(post_id):
     if post.user_id != current_user.id:
         flash('Это не твой пост!', 'danger')
         return redirect(url_for('feed'))
-    
     if request.method == 'POST':
         content = request.form['content']
         if content:
             post.content = content
-            
             if 'image' in request.files:
                 file = request.files['image']
                 if file and allowed_file(file.filename):
-                    if post.image and post.image.startswith('/static/uploads/'):
-                        old_path = post.image[1:]
-                        if os.path.exists(old_path):
-                            os.remove(old_path)
-                    
+                    if post.image and os.path.exists(post.image[1:]):
+                        os.remove(post.image[1:])
                     filename = secure_filename(f"{current_user.id}_{int(datetime.utcnow().timestamp())}_{file.filename}")
                     file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
                     post.image = f"/static/uploads/{filename}"
-            
             db.session.commit()
             flash('Пост обновлён!', 'success')
             return redirect(url_for('feed'))
-    
     return render_template('edit_post.html', post=post)
 
 @app.route('/delete_post/<int:post_id>')
@@ -277,12 +240,8 @@ def delete_post(post_id):
     if post.user_id != current_user.id:
         flash('Это не твой пост!', 'danger')
         return redirect(url_for('feed'))
-    
-    if post.image and post.image.startswith('/static/uploads/'):
-        old_path = post.image[1:]
-        if os.path.exists(old_path):
-            os.remove(old_path)
-    
+    if post.image and os.path.exists(post.image[1:]):
+        os.remove(post.image[1:])
     db.session.delete(post)
     db.session.commit()
     flash('Пост удалён', 'info')
@@ -296,28 +255,18 @@ def profile(username):
     followers_count = Follow.query.filter_by(followed_id=user.id).count()
     following_count = Follow.query.filter_by(follower_id=user.id).count()
     posts = Post.query.filter_by(user_id=user.id).order_by(Post.created_at.desc()).all()
-    
-    return render_template('profile.html', 
-                         user=user, 
-                         is_following=is_following, 
-                         followers_count=followers_count, 
-                         following_count=following_count,
-                         posts=posts)
+    return render_template('profile.html', user=user, is_following=is_following, followers_count=followers_count, following_count=following_count, posts=posts)
 
 @app.route('/follow/<username>')
 @login_required
 def follow(username):
     user = User.query.filter_by(username=username).first_or_404()
     if user.id != current_user.id:
-        existing = Follow.query.filter_by(follower_id=current_user.id, followed_id=user.id).first()
-        if not existing:
-            follow = Follow(follower_id=current_user.id, followed_id=user.id)
-            db.session.add(follow)
+        if not Follow.query.filter_by(follower_id=current_user.id, followed_id=user.id).first():
+            db.session.add(Follow(follower_id=current_user.id, followed_id=user.id))
             db.session.commit()
             flash(f'Вы подписались на {username}', 'success')
-    
-    next_page = request.args.get('next', 'feed')
-    return redirect(url_for(next_page))
+    return redirect(request.referrer or url_for('feed'))
 
 @app.route('/unfollow/<username>')
 @login_required
@@ -328,50 +277,39 @@ def unfollow(username):
         db.session.delete(follow)
         db.session.commit()
         flash(f'Вы отписались от {username}', 'info')
-    
-    next_page = request.args.get('next', 'feed')
-    return redirect(url_for(next_page))
+    return redirect(request.referrer or url_for('feed'))
 
 @app.route('/profile/edit', methods=['GET', 'POST'])
 @login_required
 def edit_profile():
     if request.method == 'POST':
         current_user.bio = request.form['bio']
-        
         if 'avatar' in request.files:
             file = request.files['avatar']
             if file and allowed_file(file.filename):
                 filename = secure_filename(f"{current_user.id}_{file.filename}")
                 file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
                 current_user.avatar = f"/static/uploads/{filename}"
-        
         db.session.commit()
         flash('Профиль обновлён!', 'success')
         return redirect(url_for('profile', username=current_user.username))
-    
     return render_template('edit_profile.html')
 
 @app.route('/search')
 @login_required
 def search():
     query = request.args.get('q', '')
-    users = []
-    if query:
-        users = User.query.filter(User.username.contains(query), User.id != current_user.id).limit(20).all()
+    users = User.query.filter(User.username.contains(query), User.id != current_user.id).limit(20).all() if query else []
     return render_template('search.html', users=users, query=query)
 
 @app.route('/api/margo', methods=['POST'])
 @login_required
 def api_margo():
     data = request.get_json()
-    question = data.get('question', '')
-    username = current_user.username
-    
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
-    answer = loop.run_until_complete(ask_groq_for_web(question, username))
+    answer = loop.run_until_complete(ask_groq_for_web(data.get('question', ''), current_user.username))
     loop.close()
-    
     return jsonify({'answer': answer})
 
 if __name__ == '__main__':
