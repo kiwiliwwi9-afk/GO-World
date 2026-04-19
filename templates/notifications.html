@@ -9,4 +9,34 @@
     <nav class="navbar">
         <div class="nav-brand">🌍 GO World</div>
         <div class="nav-links">
-            <a href="/feed">
+            <a href="/feed">Лента</a>
+            <a href="/messages">💬 Сообщения</a>
+            <a href="/notifications">🔔 Уведомления</a>
+            <a href="/profile/{{ current_user.username }}">Профиль</a>
+            <a href="/search">🔍 Найти</a>
+            <a href="/logout">Выйти</a>
+        </div>
+    </nav>
+    
+    <div class="container">
+        <h2>🔔 Уведомления</h2>
+        
+        {% for notif in notifications %}
+        <div style="background: rgba(255,255,255,0.1); border-radius: 15px; padding: 15px; margin-bottom: 10px;">
+            {% if notif.type == 'like' %}
+                <span>❤️ <strong>{{ notif.from_user.username }}</strong> лайкнул(а) ваш пост</span>
+            {% elif notif.type == 'comment' %}
+                <span>💬 <strong>{{ notif.from_user.username }}</strong> прокомментировал(а) ваш пост</span>
+            {% elif notif.type == 'follow' %}
+                <span>👥 <strong>{{ notif.from_user.username }}</strong> подписался(ась) на вас</span>
+            {% else %}
+                <span>{{ notif.type }}</span>
+            {% endif %}
+            <div style="font-size: 10px; opacity: 0.6; margin-top: 5px;">{{ notif.created_at.strftime('%d.%m.%Y %H:%M') }}</div>
+        </div>
+        {% else %}
+        <p>Нет уведомлений</p>
+        {% endfor %}
+    </div>
+</body>
+</html>
