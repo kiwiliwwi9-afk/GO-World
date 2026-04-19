@@ -9,18 +9,11 @@
     <nav class="navbar">
         <div class="nav-brand">🌍 GO World</div>
         <div class="nav-links">
-            <span>Привет, {{ current_user.username }}!</span>
             <a href="/feed">Лента</a>
-            <a href="/profile/{{ current_user.username }}">Профиль</a>
             <a href="/messages">💬 Сообщения</a>
+            <a href="/notifications">🔔 Уведомления</a>
+            <a href="/profile/{{ current_user.username }}">Профиль</a>
             <a href="/search">🔍 Найти</a>
-            <a href="/notifications" style="position: relative;">
-                🔔
-                {% set unread = get_unread_count() %}
-                {% if unread > 0 %}
-                    <span style="position: absolute; top: -8px; right: -12px; background: red; color: white; font-size: 10px; border-radius: 50%; padding: 2px 6px;">{{ unread }}</span>
-                {% endif %}
-            </a>
             <a href="/logout">Выйти</a>
         </div>
     </nav>
@@ -28,34 +21,21 @@
     <div class="container">
         <h2>💬 Сообщения</h2>
         
-        {% if dialogs %}
-            <div class="dialogs-list">
-                {% for dialog in dialogs %}
-                <a href="/messages/{{ dialog.user.username }}" style="text-decoration: none;">
-                    <div class="post" style="display: flex; align-items: center; gap: 15px;">
-                        <div style="font-size: 40px;">
-                            {% if dialog.user.avatar and dialog.user.avatar != '/static/default-avatar.png' %}
-                                <img src="{{ dialog.user.avatar }}" style="width: 50px; height: 50px; border-radius: 50%; object-fit: cover;">
-                            {% else %}
-                                👤
-                            {% endif %}
-                        </div>
-                        <div style="flex: 1;">
-                            <strong>{{ dialog.user.username }}</strong>
-                            {% if dialog.unread_count > 0 %}
-                                <span style="background: red; padding: 2px 8px; border-radius: 20px; font-size: 12px;">{{ dialog.unread_count }}</span>
-                            {% endif %}
-                            <p style="font-size: 12px; opacity: 0.7; margin-top: 5px;">
-                                {{ dialog.last_message.content[:50] if dialog.last_message else 'Нет сообщений' }}
-                            </p>
-                        </div>
-                    </div>
-                </a>
-                {% endfor %}
+        {% for dialog in dialogs %}
+        <a href="/messages/{{ dialog.user.username }}" style="text-decoration: none; color: white;">
+            <div style="background: rgba(255,255,255,0.1); border-radius: 15px; padding: 15px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <strong>{{ dialog.user.username }}</strong>
+                    <div style="font-size: 12px; opacity: 0.7;">{{ dialog.last_msg.content[:50] if dialog.last_msg else 'Нет сообщений' }}</div>
+                </div>
+                {% if dialog.unread > 0 %}
+                <span style="background: #ff6b6b; border-radius: 50%; padding: 5px 10px; font-size: 12px;">{{ dialog.unread }}</span>
+                {% endif %}
             </div>
+        </a>
         {% else %}
-            <p>У вас пока нет диалогов. Напишите кому-нибудь первому!</p>
-        {% endif %}
+        <p>Нет сообщений</p>
+        {% endfor %}
     </div>
 </body>
 </html>
