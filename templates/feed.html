@@ -11,6 +11,8 @@
         <div class="nav-links">
             <span>Привет, {{ current_user.username }}!</span>
             <a href="/feed">Лента</a>
+            <a href="/messages">💬 Сообщения {% if messages_unread > 0 %}<span style="background:red; border-radius:50%; padding:2px 6px; font-size:12px;">{{ messages_unread }}</span>{% endif %}</a>
+            <a href="/notifications">🔔 Уведомления {% if unread_count > 0 %}<span style="background:red; border-radius:50%; padding:2px 6px; font-size:12px;">{{ unread_count }}</span>{% endif %}</a>
             <a href="/profile/{{ current_user.username }}">Профиль</a>
             <a href="/search">🔍 Найти</a>
             <a href="/logout">Выйти</a>
@@ -47,7 +49,7 @@
                 
                 <div class="post-content">{{ post.content }}</div>
                 
-                {% if post.image and post.image.startswith('/static/uploads/') %}
+                {% if post.image and not post.image.contains('1_1776544368') %}
                     <img src="{{ post.image }}" alt="post image" style="max-width:100%; border-radius:10px; margin-top:10px;">
                 {% endif %}
                 
