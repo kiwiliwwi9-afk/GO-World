@@ -1,60 +1,50 @@
 {
   "name": "GO World",
   "short_name": "GO World",
-  "description": "Твой мир. Твои правила.",
-  "id": "/",
   "start_url": "/",
-  "scope": "/",
-  "lang": "ru",
-  "orientation": "portrait",
   "display": "standalone",
-  "prefer_related_applications": false,
-  "related_applications": [],
   "theme_color": "#8a2be2",
   "background_color": "#0f0c29",
-  "categories": ["social", "communication"],
   "icons": [
     {
-      "src": "/static/icon-72.png",
+      "src": "/static/launchericon-48x48.png",
+      "sizes": "48x48",
+      "type": "image/png"
+    },
+    {
+      "src": "/static/launchericon-72x72.png",
       "sizes": "72x72",
-      "type": "image/png",
-      "purpose": "any"
+      "type": "image/png"
     },
     {
-      "src": "/static/icon-96.png",
+      "src": "/static/launchericon-96x96.png",
       "sizes": "96x96",
-      "type": "image/png",
-      "purpose": "any"
+      "type": "image/png"
     },
     {
-      "src": "/static/icon-128.png",
+      "src": "/static/launchericon-128x128.png",
       "sizes": "128x128",
-      "type": "image/png",
-      "purpose": "any"
+      "type": "image/png"
     },
     {
-      "src": "/static/icon-144.png",
+      "src": "/static/launchericon-144x144.png",
       "sizes": "144x144",
-      "type": "image/png",
-      "purpose": "any"
+      "type": "image/png"
     },
     {
-      "src": "/static/icon-152.png",
+      "src": "/static/launchericon-152x152.png",
       "sizes": "152x152",
-      "type": "image/png",
-      "purpose": "any"
+      "type": "image/png"
     },
     {
-      "src": "/static/icon-192.png",
+      "src": "/static/launchericon-192x192.png",
       "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "any"
+      "type": "image/png"
     },
     {
-      "src": "/static/icon-512.png",
+      "src": "/static/launchericon-512x512.png",
       "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any"
+      "type": "image/png"
     }
   ]
 }
