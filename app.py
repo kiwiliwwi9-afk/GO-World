@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, send_from_directory
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -7,6 +7,7 @@ from datetime import datetime
 import os
 import aiohttp
 import asyncio
+import random
 
 app = Flask(__name__)
 app.secret_key = 'sekretnyi-klyuch-go-world'
@@ -120,6 +121,12 @@ async def ask_groq_for_web(question, username):
                 return "Извини, не могу ответить 🤍"
     except:
         return "Ошибка подключения 🤍"
+
+# ========== КАРТИНКИ ==========
+def generate_image_url(prompt):
+    enhanced = f"masterpiece, best quality, highly detailed, beautiful, {prompt}"
+    seed = random.randint(1, 999999)
+    return f"https://image.pollinations.ai/prompt/{enhanced.replace(' ', '%20')}?width=1024&height=1024&nologo=true&seed={seed}"
 
 # ========== РОУТЫ ==========
 @app.route('/')
@@ -385,15 +392,37 @@ def notifications():
     db.session.commit()
     return render_template('notifications.html', notifications=notifs)
 
+@app.route('/manifest.json')
+def serve_manifest():
+    return send_from_directory('static', 'manifest.json')
+
 @app.route('/api/margo', methods=['POST'])
 @login_required
 def api_margo():
     data = request.get_json()
+    question = data.get('question', '')
+    username = current_user.username
+    
+    if question.lower().startswith('нарисуй'):
+        prompt = question[7:].strip()
+        if prompt:
+            return jsonify({'image': True, 'prompt': prompt})
+    
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
-    answer = loop.run_until_complete(ask_groq_for_web(data.get('question', ''), current_user.username))
+    answer = loop.run_until_complete(ask_groq_for_web(question, username))
     loop.close()
-    return jsonify({'answer': answer})
+    
+    return jsonify({'answer': answer, 'image': False})
+
+@app.route('/api/generate_image')
+@login_required
+def api_generate_image():
+    prompt = request.args.get('prompt', '')
+    if not prompt:
+        return '', 400
+    url = generate_image_url(prompt)
+    return redirect(url)
 
 if __name__ == '__main__':
     with app.app_context():
