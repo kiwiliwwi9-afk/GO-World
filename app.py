@@ -7,6 +7,11 @@ from datetime import datetime
 import os
 import aiohttp
 import asyncio
+import sys
+
+# Фикс для Python 3.14
+if sys.version_info >= (3, 14):
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
 app = Flask(__name__)
 app.secret_key = 'sekretnyi-klyuch-go-world'
