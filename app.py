@@ -9,12 +9,12 @@ import aiohttp
 import asyncio
 import sys
 
+app = Flask(__name__)
+app.secret_key = 'sekretnyi-klyuch-go-world'
+
 # Фикс для Python 3.14
 if sys.version_info >= (3, 14):
     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
-
-app = Flask(__name__)
-app.secret_key = 'sekretnyi-klyuch-go-world'
 
 # База данных
 database_url = os.environ.get('DATABASE_URL', 'sqlite:///go_world.db')
@@ -75,41 +75,12 @@ class Comment(db.Model):
     
     author = db.relationship('User', backref=db.backref('comments', lazy=True))
 
-class Message(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    sender_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    receiver_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    content = db.Column(db.Text, nullable=False)
-    is_read = db.Column(db.Boolean, default=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    
-    sender = db.relationship('User', foreign_keys=[sender_id])
-    receiver = db.relationship('User', foreign_keys=[receiver_id])
-
-class Notification(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    type = db.Column(db.String(50), nullable=False)  # like, follow, comment, message
-    from_user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    post_id = db.Column(db.Integer, db.ForeignKey('post.id'), nullable=True)
-    is_read = db.Column(db.Boolean, default=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    
-    user = db.relationship('User', foreign_keys=[user_id])
-    from_user = db.relationship('User', foreign_keys=[from_user_id])
-    post = db.relationship('Post', foreign_keys=[post_id])
-
 @login_manager.user_loader
 def load_user(user_id):
     return User.query.get(int(user_id))
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
-
-def create_notification(user_id, type, from_user_id, post_id=None):
-    notif = Notification(user_id=user_id, type=type, from_user_id=from_user_id, post_id=post_id)
-    db.session.add(notif)
-    db.session.commit()
 
 # ========== ФУНКЦИЯ ДЛЯ МАРГО ==========
 GROQ_KEY = os.environ.get("GROQ_KEY")
@@ -191,26 +162,19 @@ def logout():
 @app.route('/feed')
 @login_required
 def feed():
-    followed_ids = [f.followed_id for f in Follow.query.filter_by(follower_id=current_user.id).all()]
-    followed_ids.append(current_user.id)
-    posts = Post.query.filter(Post.user_id.in_(followed_ids)).order_by(Post.created_at.desc()).all()
-    
-    for post in posts:
-        post.is_following = Follow.query.filter_by(
-            follower_id=current_user.id, 
-            followed_id=post.user_id
-        ).first() is not None
-        post.user_liked = Like.query.filter_by(user_id=current_user.id, post_id=post.id).first() is not None
-        post.is_author = (post.user_id == current_user.id)
-        post.comments = Comment.query.filter_by(post_id=post.id).order_by(Comment.created_at.asc()).all()
-    
-    # Уведомления
-    notifications = Notification.query.filter_by(user_id=current_user.id, is_read=False).order_by(Notification.created_at.desc()).all()
-    unread_count = len(notifications)
-    # Непрочитанные сообщения
-    messages_unread = Message.query.filter_by(receiver_id=current_user.id, is_read=False).count()
-    
-    return render_template('feed.html', posts=posts, notifications=notifications, unread_count=unread_count, messages_unread=messages_unread)
+    try:
+        followed_ids = [f.followed_id for f in Follow.query.filter_by(follower_id=current_user.id).all()]
+        followed_ids.append(current_user.id)
+        posts = Post.query.filter(Post.user_id.in_(followed_ids)).order_by(Post.created_at.desc()).all()
+        
+        for post in posts:
+            post.is_following = Follow.query.filter_by(follower_id=current_user.id, followed_id=post.user_id).first() is not None
+            post.is_author = (post.user_id == current_user.id)
+            post.comments = Comment.query.filter_by(post_id=post.id).order_by(Comment.created_at.asc()).all()
+        
+        return render_template('feed.html', posts=posts)
+    except Exception as e:
+        return f"Ошибка в feed: {str(e)}", 500
 
 @app.route('/post', methods=['POST'])
 @login_required
@@ -246,8 +210,6 @@ def like(post_id):
         new_like = Like(user_id=current_user.id, post_id=post_id)
         db.session.add(new_like)
         post.likes += 1
-        if post.user_id != current_user.id:
-            create_notification(post.user_id, 'like', current_user.id, post_id)
     
     db.session.commit()
     return redirect(request.referrer or url_for('feed'))
@@ -261,8 +223,6 @@ def add_comment(post_id):
         comment = Comment(user_id=current_user.id, post_id=post_id, content=content)
         db.session.add(comment)
         db.session.commit()
-        if post.user_id != current_user.id:
-            create_notification(post.user_id, 'comment', current_user.id, post_id)
         flash('Комментарий добавлен', 'success')
     return redirect(request.referrer or url_for('feed'))
 
@@ -354,7 +314,6 @@ def follow(username):
             follow = Follow(follower_id=current_user.id, followed_id=user.id)
             db.session.add(follow)
             db.session.commit()
-            create_notification(user.id, 'follow', current_user.id)
             flash(f'Вы подписались на {username}', 'success')
     
     next_page = request.args.get('next', 'feed')
@@ -400,70 +359,6 @@ def search():
     if query:
         users = User.query.filter(User.username.contains(query), User.id != current_user.id).limit(20).all()
     return render_template('search.html', users=users, query=query)
-
-@app.route('/messages')
-@login_required
-def messages():
-    # Диалоги: группируем по пользователям
-    sent_messages = Message.query.filter_by(sender_id=current_user.id).all()
-    received_messages = Message.query.filter_by(receiver_id=current_user.id).all()
-    
-    users_ids = set()
-    for msg in sent_messages:
-        users_ids.add(msg.receiver_id)
-    for msg in received_messages:
-        users_ids.add(msg.sender_id)
-    
-    dialogs = []
-    for uid in users_ids:
-        user = User.query.get(uid)
-        last_msg = Message.query.filter(
-            ((Message.sender_id == current_user.id) & (Message.receiver_id == uid)) |
-            ((Message.sender_id == uid) & (Message.receiver_id == current_user.id))
-        ).order_by(Message.created_at.desc()).first()
-        unread = Message.query.filter_by(receiver_id=current_user.id, sender_id=uid, is_read=False).count()
-        dialogs.append({'user': user, 'last_msg': last_msg, 'unread': unread})
-    
-    dialogs.sort(key=lambda x: x['last_msg'].created_at if x['last_msg'] else datetime.min, reverse=True)
-    
-    return render_template('messages.html', dialogs=dialogs)
-
-@app.route('/messages/<username>')
-@login_required
-def chat(username):
-    other = User.query.filter_by(username=username).first_or_404()
-    
-    # Помечаем сообщения от этого пользователя как прочитанные
-    Message.query.filter_by(sender_id=other.id, receiver_id=current_user.id, is_read=False).update({'is_read': True})
-    db.session.commit()
-    
-    messages = Message.query.filter(
-        ((Message.sender_id == current_user.id) & (Message.receiver_id == other.id)) |
-        ((Message.sender_id == other.id) & (Message.receiver_id == current_user.id))
-    ).order_by(Message.created_at.asc()).all()
-    
-    return render_template('chat.html', other=other, messages=messages)
-
-@app.route('/send_message/<username>', methods=['POST'])
-@login_required
-def send_message(username):
-    other = User.query.filter_by(username=username).first_or_404()
-    content = request.form['content']
-    if content:
-        msg = Message(sender_id=current_user.id, receiver_id=other.id, content=content)
-        db.session.add(msg)
-        db.session.commit()
-    
-    return redirect(url_for('chat', username=username))
-
-@app.route('/notifications')
-@login_required
-def notifications():
-    notifs = Notification.query.filter_by(user_id=current_user.id).order_by(Notification.created_at.desc()).all()
-    # Помечаем как прочитанные
-    Notification.query.filter_by(user_id=current_user.id, is_read=False).update({'is_read': True})
-    db.session.commit()
-    return render_template('notifications.html', notifications=notifs)
 
 @app.route('/api/margo', methods=['POST'])
 @login_required
