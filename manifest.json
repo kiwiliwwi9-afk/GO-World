@@ -1,0 +1,14 @@
+{
+  "background_color": "#0f0c29",
+  "dir": "ltr",
+  "display": "standalone",
+  "name": "GoWorld",
+  "orientation": "any",
+  "scope": "/",
+  "short_name": "GOW",
+  "start_url": "/",
+  "theme_color": "#8a2be2",
+  "id": "/",
+  "description": "Твой мир. Твои правила. Соцсеть нового поколения с нейросетью марGO",
+  "lang": "ru"
+}
