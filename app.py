@@ -504,7 +504,9 @@ def download_db():
             return "Файл базы данных не найден", 404
     except Exception as e:
         return f"Ошибка: {str(e)}", 500
-
+with app.app_context():
+    db.create_all()
+    print("✅ Таблицы созданы")
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
