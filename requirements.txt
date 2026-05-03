@@ -4,3 +4,6 @@ flask-login
 aiohttp
 gunicorn
 psycopg2-binary
+argon2-cffi
+cryptography
+cloudinary
