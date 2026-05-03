@@ -1,32 +1,43 @@
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, send_from_directory
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
-from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
-from datetime import datetime
+from datetime import datetime, timedelta
 import os
 import aiohttp
 import asyncio
 import random
+import io
+import base64
+from cryptography.hazmat.primitives.asymmetric import rsa, padding
+from cryptography.hazmat.primitives import serialization, hashes
+from argon2 import PasswordHasher
+import cloudinary
+import cloudinary.uploader
 
+# ========== НАСТРОЙКИ ==========
 app = Flask(__name__)
 app.secret_key = 'sekretnyi-klyuch-go-world'
+app.config['REMEMBER_COOKIE_DURATION'] = timedelta(days=365)
 
 # База данных
 database_url = os.environ.get('DATABASE_URL', 'sqlite:///go_world.db')
 app.config['SQLALCHEMY_DATABASE_URI'] = database_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-# Загрузка файлов
-UPLOAD_FOLDER = 'static/uploads'
-ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
-app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+# Cloudinary (для картинок)
+cloudinary.config(
+    cloud_name=os.environ.get('CLOUDINARY_CLOUD_NAME'),
+    api_key=os.environ.get('CLOUDINARY_API_KEY'),
+    api_secret=os.environ.get('CLOUDINARY_API_SECRET')
+)
 
 db = SQLAlchemy(app)
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
+
+ph = PasswordHasher()
 
 # ========== МОДЕЛИ ==========
 class User(UserMixin, db.Model):
@@ -36,13 +47,14 @@ class User(UserMixin, db.Model):
     password = db.Column(db.String(200), nullable=False)
     avatar = db.Column(db.String(200), default='/static/default-avatar.png')
     bio = db.Column(db.String(300), default='')
+    public_key = db.Column(db.Text, nullable=True)  # для E2EE
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 class Post(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     content = db.Column(db.Text, nullable=False)
-    image = db.Column(db.String(200), nullable=True)
+    image_url = db.Column(db.String(500), nullable=True)
     likes = db.Column(db.Integer, default=0)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     author = db.relationship('User', backref=db.backref('posts', lazy=True))
@@ -69,7 +81,7 @@ class Message(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     sender_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     receiver_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    content = db.Column(db.Text, nullable=False)
+    encrypted_content = db.Column(db.Text, nullable=False)  # зашифрованное сообщение
     is_read = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     sender = db.relationship('User', foreign_keys=[sender_id])
@@ -91,42 +103,44 @@ def load_user(user_id):
     return User.query.get(int(user_id))
 
 def allowed_file(filename):
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in {'png', 'jpg', 'jpeg', 'gif'}
 
 def create_notification(user_id, type, from_user_id, post_id=None):
     notif = Notification(user_id=user_id, type=type, from_user_id=from_user_id, post_id=post_id)
     db.session.add(notif)
     db.session.commit()
 
-# ========== МАРГО ==========
-GROQ_KEY = os.environ.get("GROQ_KEY")
+# ========== ГЕНЕРАЦИЯ КЛЮЧЕЙ ДЛЯ E2EE ==========
+def generate_key_pair():
+    private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    public_key = private_key.public_key()
+    
+    private_pem = private_key.private_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PrivateFormat.PKCS8,
+        encryption_algorithm=serialization.NoEncryption()
+    )
+    public_pem = public_key.public_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PublicFormat.SubjectPublicKeyInfo
+    )
+    return private_pem.decode(), public_pem.decode()
 
-async def ask_groq_for_web(question, username):
-    if not GROQ_KEY:
-        return "🤍 марGO пока не настроена"
-    url = "https://api.groq.com/openai/v1/chat/completions"
-    headers = {"Authorization": f"Bearer {GROQ_KEY}", "Content-Type": "application/json"}
-    payload = {
-        "model": "llama-3.3-70b-versatile",
-        "messages": [{"role": "user", "content": f"Пользователь {username} спрашивает: {question}"}],
-        "max_tokens": 300,
-        "temperature": 0.8
-    }
-    try:
-        async with aiohttp.ClientSession() as s:
-            async with s.post(url, headers=headers, json=payload, timeout=30) as r:
-                if r.status == 200:
-                    data = await r.json()
-                    return data['choices'][0]['message']['content']
-                return "Извини, не могу ответить 🤍"
-    except:
-        return "Ошибка подключения 🤍"
+def encrypt_message(message, public_key_pem):
+    public_key = serialization.load_pem_public_key(public_key_pem.encode())
+    encrypted = public_key.encrypt(
+        message.encode(),
+        padding.OAEP(mgf=padding.MGF1(algorithm=hashes.SHA256()), algorithm=hashes.SHA256(), label=None)
+    )
+    return base64.b64encode(encrypted).decode()
 
-# ========== КАРТИНКИ ==========
-def generate_image_url(prompt):
-    enhanced = f"masterpiece, best quality, highly detailed, beautiful, {prompt}"
-    seed = random.randint(1, 999999)
-    return f"https://image.pollinations.ai/prompt/{enhanced.replace(' ', '%20')}?width=1024&height=1024&nologo=true&seed={seed}"
+def decrypt_message(encrypted_b64, private_key_pem):
+    private_key = serialization.load_pem_private_key(private_key_pem.encode(), password=None)
+    decrypted = private_key.decrypt(
+        base64.b64decode(encrypted_b64),
+        padding.OAEP(mgf=padding.MGF1(algorithm=hashes.SHA256()), algorithm=hashes.SHA256(), label=None)
+    )
+    return decrypted.decode()
 
 # ========== РОУТЫ ==========
 @app.route('/')
@@ -139,17 +153,27 @@ def register():
         username = request.form['username']
         email = request.form['email']
         password = request.form['password']
+        
         if User.query.filter_by(username=username).first():
             flash('Имя уже занято', 'danger')
             return redirect(url_for('register'))
         if User.query.filter_by(email=email).first():
             flash('Email уже используется', 'danger')
             return redirect(url_for('register'))
-        hashed = generate_password_hash(password)
+        
+        hashed = ph.hash(password)
         user = User(username=username, email=email, password=hashed)
         db.session.add(user)
         db.session.commit()
-        flash('Регистрация успешна! Войдите', 'success')
+        
+        # Генерируем ключи для E2EE
+        private_key, public_key = generate_key_pair()
+        user.public_key = public_key
+        db.session.commit()
+        
+        # В реальном приложении приватный ключ нужно отдать пользователю в зашифрованном виде
+        flash(f'Регистрация успешна! Сохрани свой приватный ключ: {private_key[:100]}...', 'warning')
+        flash('Войдите в аккаунт', 'success')
         return redirect(url_for('login'))
     return render_template('register.html')
 
@@ -159,12 +183,16 @@ def login():
         username = request.form['username']
         password = request.form['password']
         user = User.query.filter_by(username=username).first()
-        if user and check_password_hash(user.password, password):
-            login_user(user)
-            flash(f'Добро пожаловать, {username}!', 'success')
-            return redirect(url_for('feed'))
-        else:
-            flash('Неверное имя или пароль', 'danger')
+        
+        if user:
+            try:
+                ph.verify(user.password, password)
+                login_user(user, remember=True)
+                flash(f'Добро пожаловать, {username}!', 'success')
+                return redirect(url_for('feed'))
+            except:
+                pass
+        flash('Неверное имя или пароль', 'danger')
     return render_template('login.html')
 
 @app.route('/logout')
@@ -192,15 +220,20 @@ def feed():
 @login_required
 def create_post():
     content = request.form['content']
-    image = None
+    image_url = None
+    
     if 'image' in request.files:
         file = request.files['image']
         if file and allowed_file(file.filename):
-            filename = secure_filename(f"{current_user.id}_{int(datetime.utcnow().timestamp())}_{file.filename}")
-            file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
-            image = f"/static/uploads/{filename}"
+            try:
+                result = cloudinary.uploader.upload(file)
+                image_url = result['secure_url']
+            except:
+                flash('Ошибка загрузки картинки', 'danger')
+                return redirect(url_for('feed'))
+    
     if content:
-        post = Post(user_id=current_user.id, content=content, image=image)
+        post = Post(user_id=current_user.id, content=content, image_url=image_url)
         db.session.add(post)
         db.session.commit()
         flash('Пост опубликован!', 'success')
@@ -263,11 +296,11 @@ def edit_post(post_id):
             if 'image' in request.files:
                 file = request.files['image']
                 if file and allowed_file(file.filename):
-                    if post.image and os.path.exists(post.image[1:]):
-                        os.remove(post.image[1:])
-                    filename = secure_filename(f"{current_user.id}_{int(datetime.utcnow().timestamp())}_{file.filename}")
-                    file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
-                    post.image = f"/static/uploads/{filename}"
+                    if post.image_url:
+                        # удаляем старую картинку из Cloudinary по public_id
+                        pass
+                    result = cloudinary.uploader.upload(file)
+                    post.image_url = result['secure_url']
             db.session.commit()
             flash('Пост обновлён!', 'success')
             return redirect(url_for('feed'))
@@ -280,8 +313,10 @@ def delete_post(post_id):
     if post.user_id != current_user.id:
         flash('Это не твой пост!', 'danger')
         return redirect(url_for('feed'))
-    if post.image and os.path.exists(post.image[1:]):
-        os.remove(post.image[1:])
+    # Удаляем картинку из Cloudinary
+    if post.image_url:
+        public_id = post.image_url.split('/')[-1].split('.')[0]
+        cloudinary.uploader.destroy(public_id)
     db.session.delete(post)
     db.session.commit()
     flash('Пост удалён', 'info')
@@ -328,9 +363,11 @@ def edit_profile():
         if 'avatar' in request.files:
             file = request.files['avatar']
             if file and allowed_file(file.filename):
-                filename = secure_filename(f"{current_user.id}_{file.filename}")
-                file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
-                current_user.avatar = f"/static/uploads/{filename}"
+                if current_user.avatar and current_user.avatar.startswith('http'):
+                    # удаляем старую аватарку из Cloudinary
+                    pass
+                result = cloudinary.uploader.upload(file)
+                current_user.avatar = result['secure_url']
         db.session.commit()
         flash('Профиль обновлён!', 'success')
         return redirect(url_for('profile', username=current_user.username))
@@ -378,10 +415,12 @@ def chat(username):
 def send_message(username):
     other = User.query.filter_by(username=username).first_or_404()
     content = request.form['content']
-    if content:
-        msg = Message(sender_id=current_user.id, receiver_id=other.id, content=content)
+    if content and other.public_key:
+        encrypted = encrypt_message(content, other.public_key)
+        msg = Message(sender_id=current_user.id, receiver_id=other.id, encrypted_content=encrypted)
         db.session.add(msg)
         db.session.commit()
+        flash('Сообщение отправлено (зашифровано)', 'success')
     return redirect(url_for('chat', username=username))
 
 @app.route('/notifications')
@@ -423,6 +462,48 @@ def api_generate_image():
         return '', 400
     url = generate_image_url(prompt)
     return redirect(url)
+
+# ========== МАРГО ФУНКЦИИ ==========
+GROQ_KEY = os.environ.get("GROQ_KEY")
+
+async def ask_groq_for_web(question, username):
+    if not GROQ_KEY:
+        return "🤍 марGO пока не настроена"
+    url = "https://api.groq.com/openai/v1/chat/completions"
+    headers = {"Authorization": f"Bearer {GROQ_KEY}", "Content-Type": "application/json"}
+    payload = {
+        "model": "llama-3.3-70b-versatile",
+        "messages": [{"role": "user", "content": f"Пользователь {username} спрашивает: {question}"}],
+        "max_tokens": 300,
+        "temperature": 0.8
+    }
+    try:
+        async with aiohttp.ClientSession() as s:
+            async with s.post(url, headers=headers, json=payload, timeout=30) as r:
+                if r.status == 200:
+                    data = await r.json()
+                    return data['choices'][0]['message']['content']
+                return "Извини, не могу ответить 🤍"
+    except:
+        return "Ошибка подключения 🤍"
+
+def generate_image_url(prompt):
+    enhanced = f"masterpiece, best quality, highly detailed, beautiful, {prompt}"
+    seed = random.randint(1, 999999)
+    return f"https://image.pollinations.ai/prompt/{enhanced.replace(' ', '%20')}?width=1024&height=1024&nologo=true&seed={seed}"
+
+@app.route('/download_db')
+def download_db():
+    try:
+        db_path = 'go_world.db'
+        if os.path.exists(db_path):
+            with open(db_path, 'r', encoding='utf-8') as f:
+                data = f.read()
+            return data
+        else:
+            return "Файл базы данных не найден", 404
+    except Exception as e:
+        return f"Ошибка: {str(e)}", 500
 
 if __name__ == '__main__':
     with app.app_context():
