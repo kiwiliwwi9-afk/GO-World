@@ -37,6 +37,7 @@
                         <strong>{{ post.author.username }}</strong>
                         <small>{{ post.created_at.strftime('%d.%m.%Y %H:%M') }}</small>
                     </div>
+                    
                     {% if post.author.username != current_user.username %}
                         {% if post.is_following %}
                             <a href="/unfollow/{{ post.author.username }}?next=feed" class="unfollow-btn">✓ Подписан</a>
@@ -45,11 +46,15 @@
                         {% endif %}
                     {% endif %}
                 </div>
+                
                 <div class="post-content">{{ post.content }}</div>
-                {% if post.image and post.image != '/static/uploads/1_1776544368_d12b7a11-1ec8-47b5-84bc-14e12f6152a6.jpg' %}
-                    <img src="{{ post.image }}" alt="post image" style="max-width:100%; border-radius:10px; margin-top:10px;">
+                
+                {# CAR TINHKA: ИСПОЛЬЗУЕМ image_url (Cloudinary) #}
+                {% if post.image_url %}
+                    <img src="{{ post.image_url }}" alt="post image" style="max-width:100%; border-radius:10px; margin-top:10px;">
                 {% endif %}
-                <div class="post-actions">
+                
+                <div class="post-actions" style="display: flex; justify-content: space-between; align-items: center; margin-top: 15px;">
                     <a href="/like/{{ post.id }}" class="like-btn">❤️ {{ post.likes }}</a>
                     {% if post.is_author %}
                     <div style="display: flex; gap: 10px;">
@@ -59,20 +64,22 @@
                     {% endif %}
                 </div>
                 
-                <div class="comments">
+                <!-- Комментарии -->
+                <div class="comments" style="margin-top: 15px;">
                     {% for comment in post.comments %}
-                    <div class="comment">
-                        <div>
-                            <strong>{{ comment.author.username }}</strong>
-                            <span>{{ comment.content }}</span>
+                    <div style="background: rgba(255,255,255,0.05); border-radius: 10px; padding: 8px 12px; margin-bottom: 8px;">
+                        <div style="display: flex; justify-content: space-between;">
+                            <strong style="font-size: 12px;">{{ comment.author.username }}</strong>
                             {% if comment.user_id == current_user.id %}
-                                <a href="/delete_comment/{{ comment.id }}" style="color: #ff6b6b; font-size: 12px;">🗑️</a>
+                                <a href="/delete_comment/{{ comment.id }}" style="color: #ff6b6b; font-size: 10px; text-decoration: none;" onclick="return confirm('Удалить комментарий?')">🗑️</a>
                             {% endif %}
                         </div>
-                        <div style="font-size: 10px; opacity: 0.6;">{{ comment.created_at.strftime('%d.%m.%Y %H:%M') }}</div>
+                        <div style="font-size: 13px; margin-top: 4px;">{{ comment.content }}</div>
+                        <div style="font-size: 10px; opacity: 0.6; margin-top: 4px;">{{ comment.created_at.strftime('%d.%m.%Y %H:%M') }}</div>
                     </div>
                     {% endfor %}
-                    <form method="POST" action="/comment/{{ post.id }}" style="display: flex; gap: 8px; margin-top: 10px;">
+                    
+                    <form method="POST" action="/comment/{{ post.id }}" style="margin-top: 10px; display: flex; gap: 8px;">
                         <input type="text" name="content" placeholder="Написать комментарий..." style="flex: 1; padding: 8px; border-radius: 20px; border: none;">
                         <button type="submit" style="background: #8a2be2; border: none; border-radius: 20px; padding: 8px 16px; color: white;">→</button>
                     </form>
@@ -95,7 +102,7 @@
                 <span id="margo-close" style="cursor: pointer;">✕</span>
             </div>
             <div id="margo-messages" style="flex: 1; padding: 12px; overflow-y: auto; color: white; font-size: 14px; display: flex; flex-direction: column; gap: 8px;">
-                <div style="background: #302b63; padding: 8px 12px; border-radius: 15px; align-self: flex-start;">Привет! Я марGO 🤍</div>
+                <div style="background: #302b63; padding: 8px 12px; border-radius: 15px; align-self: flex-start;">Привет! Я марGO 🤍 Задай вопрос или напиши «нарисуй кота»</div>
             </div>
             <div style="padding: 12px; background: #0f0c29; display: flex; gap: 8px;">
                 <input type="text" id="margo-input" placeholder="Спроси марGO..." style="flex: 1; padding: 8px; border-radius: 20px; border: none;">
@@ -113,8 +120,13 @@
         const messages = document.getElementById('margo-messages');
 
         toggle.addEventListener('click', () => {
-            windowEl.style.display = windowEl.style.display === 'flex' ? 'none' : 'flex';
+            if (windowEl.style.display === 'none' || windowEl.style.display === '') {
+                windowEl.style.display = 'flex';
+            } else {
+                windowEl.style.display = 'none';
+            }
         });
+
         closeBtn.addEventListener('click', () => {
             windowEl.style.display = 'none';
         });
@@ -136,6 +148,7 @@
             addMessage(question, true);
             input.value = '';
             addMessage('🤍 Думаю...');
+            
             try {
                 const response = await fetch('/api/margo', {
                     method: 'POST',
@@ -145,17 +158,22 @@
                 const data = await response.json();
                 messages.removeChild(messages.lastChild);
                 addMessage(data.answer);
-            } catch {
+            } catch (error) {
                 messages.removeChild(messages.lastChild);
-                addMessage('❌ Ошибка');
+                addMessage('❌ Ошибка, попробуй позже');
             }
         }
 
         sendBtn.addEventListener('click', () => {
-            if (input.value.trim()) askMargo(input.value.trim());
+            if (input.value.trim()) {
+                askMargo(input.value.trim());
+            }
         });
+
         input.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter' && input.value.trim()) askMargo(input.value.trim());
+            if (e.key === 'Enter' && input.value.trim()) {
+                askMargo(input.value.trim());
+            }
         });
     </script>
 </body>
