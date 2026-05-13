@@ -1,10 +1,9 @@
+import os
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
-from werkzeug.utils import secure_filename
 from datetime import datetime
-import os
 
 app = Flask(__name__)
 app.secret_key = 'sekretnyi-klyuch-go-world'
@@ -24,14 +23,12 @@ class User(UserMixin, db.Model):
     password = db.Column(db.String(200), nullable=False)
     avatar = db.Column(db.String(200), default='👤')
     bio = db.Column(db.String(300), default='')
-    interests = db.Column(db.String(500), default='')
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 class Post(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     content = db.Column(db.Text, nullable=False)
-    image = db.Column(db.String(200), nullable=True)
     likes = db.Column(db.Integer, default=0)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     author = db.relationship('User', backref=db.backref('posts', lazy=True))
@@ -80,14 +77,13 @@ def register():
         name = request.form['name']
         username = request.form['username']
         password = request.form['password']
-        interests = request.form.getlist('interests')
         
         if User.query.filter_by(username=username).first():
             flash('Имя пользователя уже занято', 'danger')
             return redirect(url_for('register'))
         
         hashed = generate_password_hash(password)
-        user = User(name=name, username=username, password=hashed, interests=','.join(interests))
+        user = User(name=name, username=username, password=hashed)
         db.session.add(user)
         db.session.commit()
         
@@ -118,13 +114,11 @@ def logout():
 @app.route('/feed')
 @login_required
 def feed():
-    # Посты от подписок
     followed_ids = [f.followed_id for f in Follow.query.filter_by(follower_id=current_user.id).all()]
     followed_ids.append(current_user.id)
     posts = Post.query.filter(Post.user_id.in_(followed_ids)).order_by(Post.created_at.desc()).all()
     for post in posts:
         post.is_liked = Like.query.filter_by(user_id=current_user.id, post_id=post.id).first() is not None
-        post.is_author = (post.user_id == current_user.id)
     notif_count = Notification.query.filter_by(user_id=current_user.id, is_read=False).count()
     msg_count = Message.query.filter_by(receiver_id=current_user.id, is_read=False).count()
     return render_template('feed.html', posts=posts, notif_count=notif_count, msg_count=msg_count)
@@ -166,7 +160,8 @@ def profile(username):
     followers_count = Follow.query.filter_by(followed_id=user.id).count()
     following_count = Follow.query.filter_by(follower_id=user.id).count()
     posts = Post.query.filter_by(user_id=user.id).order_by(Post.created_at.desc()).all()
-    return render_template('profile.html', user=user, is_following=is_following, followers_count=followers_count, following_count=following_count, posts=posts)
+    return render_template('profile.html', user=user, is_following=is_following, 
+                          followers_count=followers_count, following_count=following_count, posts=posts)
 
 @app.route('/follow/<username>')
 @login_required
@@ -201,7 +196,6 @@ def search():
 @app.route('/messages')
 @login_required
 def messages():
-    # Диалоги
     dialogs = {}
     sent = Message.query.filter_by(sender_id=current_user.id).all()
     received = Message.query.filter_by(receiver_id=current_user.id).all()
@@ -258,12 +252,8 @@ def edit_profile():
         return redirect(url_for('profile', username=current_user.username))
     return render_template('edit_profile.html')
 
-@app.route('/nearby')
-@login_required
-def nearby():
-    return render_template('nearby.html')
-
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
-    app.run(debug=True)
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port, debug=False)
