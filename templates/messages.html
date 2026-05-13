@@ -2,40 +2,88 @@
 <html>
 <head>
     <title>Сообщения — GO World</title>
-    <link rel="stylesheet" href="/static/style.css">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; padding-bottom: 70px; }
+        .navbar {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: white;
+            display: flex;
+            justify-content: space-around;
+            padding: 12px 16px;
+            border-top: 1px solid #e0e0e0;
+        }
+        .nav-item { text-align: center; text-decoration: none; color: #8e8e8e; font-size: 12px; }
+        .nav-icon { font-size: 24px; }
+        .container { max-width: 600px; margin: 0 auto; padding: 16px; }
+        .header { margin-bottom: 20px; }
+        .logo { font-size: 28px; font-weight: bold; background: linear-gradient(135deg, #8a2be2, #00d2ff); -webkit-background-clip: text; background-clip: text; color: transparent; }
+        .chat-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: white;
+            padding: 12px;
+            border-radius: 12px;
+            margin-bottom: 8px;
+            text-decoration: none;
+            color: inherit;
+        }
+        .avatar {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #8a2be2, #00d2ff);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            font-size: 20px;
+        }
+        .chat-info { flex: 1; }
+        .chat-name { font-weight: 600; }
+        .chat-preview { font-size: 12px; color: #8e8e8e; }
+        .unread {
+            background: #8a2be2;
+            color: white;
+            border-radius: 50%;
+            padding: 2px 8px;
+            font-size: 12px;
+        }
+    </style>
 </head>
 <body>
-    <nav class="navbar">
-        <div class="nav-brand">🌍 GO World</div>
-        <div class="nav-links">
-            <a href="/feed">Лента</a>
-            <a href="/messages">💬 Сообщения</a>
-            <a href="/notifications">🔔 Уведомления</a>
-            <a href="/profile/{{ current_user.username }}">Профиль</a>
-            <a href="/search">🔍 Найти</a>
-            <a href="/logout">Выйти</a>
-        </div>
-    </nav>
-    
     <div class="container">
-        <h2>💬 Сообщения</h2>
-        
+        <div class="header">
+            <div class="logo">Сообщения</div>
+        </div>
+
         {% for dialog in dialogs %}
-        <a href="/messages/{{ dialog.user.username }}" style="text-decoration: none; color: white;">
-            <div style="background: rgba(255,255,255,0.1); border-radius: 15px; padding: 15px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center;">
-                <div>
-                    <strong>{{ dialog.user.username }}</strong>
-                    <div style="font-size: 12px; opacity: 0.7;">{{ dialog.last_msg.content[:50] if dialog.last_msg else 'Нет сообщений' }}</div>
-                </div>
-                {% if dialog.unread > 0 %}
-                <span style="background: #ff6b6b; border-radius: 50%; padding: 5px 10px; font-size: 12px;">{{ dialog.unread }}</span>
-                {% endif %}
+        <a href="/messages/{{ dialog.user.username }}" class="chat-item">
+            <div class="avatar">{{ dialog.user.name[0].upper() }}</div>
+            <div class="chat-info">
+                <div class="chat-name">{{ dialog.user.name }}</div>
+                <div class="chat-preview">{{ dialog.last_msg.content[:50] }}</div>
             </div>
+            {% if dialog.unread > 0 %}
+                <div class="unread">{{ dialog.unread }}</div>
+            {% endif %}
         </a>
         {% else %}
-        <p>Нет сообщений</p>
+        <p style="text-align: center; color: #8e8e8e;">Нет сообщений</p>
         {% endfor %}
+    </div>
+
+    <div class="navbar">
+        <a href="/feed" class="nav-item"><div class="nav-icon">🏠</div><span>Главная</span></a>
+        <a href="/search" class="nav-item"><div class="nav-icon">🔍</div><span>Поиск</span></a>
+        <a href="/messages" class="nav-item" style="color: #8a2be2;"><div class="nav-icon">💬</div><span>Сообщения</span></a>
+        <a href="/notifications" class="nav-item"><div class="nav-icon">🔔</div><span>Уведомления</span></a>
+        <a href="/profile/{{ current_user.username }}" class="nav-item"><div class="nav-icon">👤</div><span>Профиль</span></a>
     </div>
 </body>
 </html>
