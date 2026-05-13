@@ -1,60 +1,37 @@
-from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, send_from_directory
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
+from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
-from datetime import datetime, timedelta
+from datetime import datetime
 import os
-import aiohttp
-import asyncio
-import random
-import io
-import base64
-from cryptography.hazmat.primitives.asymmetric import rsa, padding
-from cryptography.hazmat.primitives import serialization, hashes
-from argon2 import PasswordHasher
-import cloudinary
-import cloudinary.uploader
 
-# ========== НАСТРОЙКИ ==========
 app = Flask(__name__)
 app.secret_key = 'sekretnyi-klyuch-go-world'
-app.config['REMEMBER_COOKIE_DURATION'] = timedelta(days=365)
-
-# База данных
-database_url = os.environ.get('DATABASE_URL', 'sqlite:///go_world.db')
-app.config['SQLALCHEMY_DATABASE_URI'] = database_url
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///go_world.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-
-# Cloudinary (для картинок)
-cloudinary.config(
-    cloud_name=os.environ.get('CLOUDINARY_CLOUD_NAME'),
-    api_key=os.environ.get('CLOUDINARY_API_KEY'),
-    api_secret=os.environ.get('CLOUDINARY_API_SECRET')
-)
 
 db = SQLAlchemy(app)
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
 
-ph = PasswordHasher()
-
 # ========== МОДЕЛИ ==========
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
-    email = db.Column(db.String(120), unique=True, nullable=False)
+    name = db.Column(db.String(80), nullable=False)
     password = db.Column(db.String(200), nullable=False)
-    avatar = db.Column(db.String(200), default='/static/default-avatar.png')
+    avatar = db.Column(db.String(200), default='👤')
     bio = db.Column(db.String(300), default='')
-    public_key = db.Column(db.Text, nullable=True)  # для E2EE
+    interests = db.Column(db.String(500), default='')
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 class Post(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     content = db.Column(db.Text, nullable=False)
-    image_url = db.Column(db.String(500), nullable=True)
+    image = db.Column(db.String(200), nullable=True)
     likes = db.Column(db.Integer, default=0)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     author = db.relationship('User', backref=db.backref('posts', lazy=True))
@@ -69,19 +46,11 @@ class Like(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     post_id = db.Column(db.Integer, db.ForeignKey('post.id'), nullable=False)
 
-class Comment(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    post_id = db.Column(db.Integer, db.ForeignKey('post.id'), nullable=False)
-    content = db.Column(db.Text, nullable=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    author = db.relationship('User', backref=db.backref('comments', lazy=True))
-
 class Message(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     sender_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     receiver_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    encrypted_content = db.Column(db.Text, nullable=False)  # зашифрованное сообщение
+    content = db.Column(db.Text, nullable=False)
     is_read = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     sender = db.relationship('User', foreign_keys=[sender_id])
@@ -95,52 +64,10 @@ class Notification(db.Model):
     post_id = db.Column(db.Integer, db.ForeignKey('post.id'), nullable=True)
     is_read = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    user = db.relationship('User', foreign_keys=[user_id])
-    from_user = db.relationship('User', foreign_keys=[from_user_id])
 
 @login_manager.user_loader
 def load_user(user_id):
     return User.query.get(int(user_id))
-
-def allowed_file(filename):
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in {'png', 'jpg', 'jpeg', 'gif'}
-
-def create_notification(user_id, type, from_user_id, post_id=None):
-    notif = Notification(user_id=user_id, type=type, from_user_id=from_user_id, post_id=post_id)
-    db.session.add(notif)
-    db.session.commit()
-
-# ========== ГЕНЕРАЦИЯ КЛЮЧЕЙ ДЛЯ E2EE ==========
-def generate_key_pair():
-    private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
-    public_key = private_key.public_key()
-    
-    private_pem = private_key.private_bytes(
-        encoding=serialization.Encoding.PEM,
-        format=serialization.PrivateFormat.PKCS8,
-        encryption_algorithm=serialization.NoEncryption()
-    )
-    public_pem = public_key.public_bytes(
-        encoding=serialization.Encoding.PEM,
-        format=serialization.PublicFormat.SubjectPublicKeyInfo
-    )
-    return private_pem.decode(), public_pem.decode()
-
-def encrypt_message(message, public_key_pem):
-    public_key = serialization.load_pem_public_key(public_key_pem.encode())
-    encrypted = public_key.encrypt(
-        message.encode(),
-        padding.OAEP(mgf=padding.MGF1(algorithm=hashes.SHA256()), algorithm=hashes.SHA256(), label=None)
-    )
-    return base64.b64encode(encrypted).decode()
-
-def decrypt_message(encrypted_b64, private_key_pem):
-    private_key = serialization.load_pem_private_key(private_key_pem.encode(), password=None)
-    decrypted = private_key.decrypt(
-        base64.b64decode(encrypted_b64),
-        padding.OAEP(mgf=padding.MGF1(algorithm=hashes.SHA256()), algorithm=hashes.SHA256(), label=None)
-    )
-    return decrypted.decode()
 
 # ========== РОУТЫ ==========
 @app.route('/')
@@ -150,30 +77,21 @@ def index():
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     if request.method == 'POST':
+        name = request.form['name']
         username = request.form['username']
-        email = request.form['email']
         password = request.form['password']
+        interests = request.form.getlist('interests')
         
         if User.query.filter_by(username=username).first():
-            flash('Имя уже занято', 'danger')
-            return redirect(url_for('register'))
-        if User.query.filter_by(email=email).first():
-            flash('Email уже используется', 'danger')
+            flash('Имя пользователя уже занято', 'danger')
             return redirect(url_for('register'))
         
-        hashed = ph.hash(password)
-        user = User(username=username, email=email, password=hashed)
+        hashed = generate_password_hash(password)
+        user = User(name=name, username=username, password=hashed, interests=','.join(interests))
         db.session.add(user)
         db.session.commit()
         
-        # Генерируем ключи для E2EE
-        private_key, public_key = generate_key_pair()
-        user.public_key = public_key
-        db.session.commit()
-        
-        # В реальном приложении приватный ключ нужно отдать пользователю в зашифрованном виде
-        flash(f'Регистрация успешна! Сохрани свой приватный ключ: {private_key[:100]}...', 'warning')
-        flash('Войдите в аккаунт', 'success')
+        flash('Регистрация успешна! Войдите', 'success')
         return redirect(url_for('login'))
     return render_template('register.html')
 
@@ -183,15 +101,10 @@ def login():
         username = request.form['username']
         password = request.form['password']
         user = User.query.filter_by(username=username).first()
-        
-        if user:
-            try:
-                ph.verify(user.password, password)
-                login_user(user, remember=True)
-                flash(f'Добро пожаловать, {username}!', 'success')
-                return redirect(url_for('feed'))
-            except:
-                pass
+        if user and check_password_hash(user.password, password):
+            login_user(user)
+            flash(f'Добро пожаловать, {user.name}!', 'success')
+            return redirect(url_for('feed'))
         flash('Неверное имя или пароль', 'danger')
     return render_template('login.html')
 
@@ -205,13 +118,13 @@ def logout():
 @app.route('/feed')
 @login_required
 def feed():
+    # Посты от подписок
     followed_ids = [f.followed_id for f in Follow.query.filter_by(follower_id=current_user.id).all()]
     followed_ids.append(current_user.id)
     posts = Post.query.filter(Post.user_id.in_(followed_ids)).order_by(Post.created_at.desc()).all()
     for post in posts:
-        post.is_following = Follow.query.filter_by(follower_id=current_user.id, followed_id=post.user_id).first() is not None
+        post.is_liked = Like.query.filter_by(user_id=current_user.id, post_id=post.id).first() is not None
         post.is_author = (post.user_id == current_user.id)
-        post.comments = Comment.query.filter_by(post_id=post.id).order_by(Comment.created_at.asc()).all()
     notif_count = Notification.query.filter_by(user_id=current_user.id, is_read=False).count()
     msg_count = Message.query.filter_by(receiver_id=current_user.id, is_read=False).count()
     return render_template('feed.html', posts=posts, notif_count=notif_count, msg_count=msg_count)
@@ -220,20 +133,8 @@ def feed():
 @login_required
 def create_post():
     content = request.form['content']
-    image_url = None
-    
-    if 'image' in request.files:
-        file = request.files['image']
-        if file and allowed_file(file.filename):
-            try:
-                result = cloudinary.uploader.upload(file)
-                image_url = result['secure_url']
-            except:
-                flash('Ошибка загрузки картинки', 'danger')
-                return redirect(url_for('feed'))
-    
     if content:
-        post = Post(user_id=current_user.id, content=content, image_url=image_url)
+        post = Post(user_id=current_user.id, content=content)
         db.session.add(post)
         db.session.commit()
         flash('Пост опубликован!', 'success')
@@ -252,75 +153,10 @@ def like(post_id):
         db.session.add(new)
         post.likes += 1
         if post.user_id != current_user.id:
-            create_notification(post.user_id, 'like', current_user.id, post_id)
+            notif = Notification(user_id=post.user_id, type='like', from_user_id=current_user.id, post_id=post_id)
+            db.session.add(notif)
     db.session.commit()
     return redirect(request.referrer or url_for('feed'))
-
-@app.route('/comment/<int:post_id>', methods=['POST'])
-@login_required
-def add_comment(post_id):
-    content = request.form['content']
-    if content:
-        post = Post.query.get(post_id)
-        comment = Comment(user_id=current_user.id, post_id=post_id, content=content)
-        db.session.add(comment)
-        db.session.commit()
-        if post.user_id != current_user.id:
-            create_notification(post.user_id, 'comment', current_user.id, post_id)
-        flash('Комментарий добавлен', 'success')
-    return redirect(request.referrer or url_for('feed'))
-
-@app.route('/delete_comment/<int:comment_id>')
-@login_required
-def delete_comment(comment_id):
-    comment = Comment.query.get_or_404(comment_id)
-    if comment.user_id != current_user.id:
-        flash('Это не твой комментарий!', 'danger')
-        return redirect(request.referrer or url_for('feed'))
-    db.session.delete(comment)
-    db.session.commit()
-    flash('Комментарий удалён', 'info')
-    return redirect(request.referrer or url_for('feed'))
-
-@app.route('/edit_post/<int:post_id>', methods=['GET', 'POST'])
-@login_required
-def edit_post(post_id):
-    post = Post.query.get_or_404(post_id)
-    if post.user_id != current_user.id:
-        flash('Это не твой пост!', 'danger')
-        return redirect(url_for('feed'))
-    if request.method == 'POST':
-        content = request.form['content']
-        if content:
-            post.content = content
-            if 'image' in request.files:
-                file = request.files['image']
-                if file and allowed_file(file.filename):
-                    if post.image_url:
-                        # удаляем старую картинку из Cloudinary по public_id
-                        pass
-                    result = cloudinary.uploader.upload(file)
-                    post.image_url = result['secure_url']
-            db.session.commit()
-            flash('Пост обновлён!', 'success')
-            return redirect(url_for('feed'))
-    return render_template('edit_post.html', post=post)
-
-@app.route('/delete_post/<int:post_id>')
-@login_required
-def delete_post(post_id):
-    post = Post.query.get_or_404(post_id)
-    if post.user_id != current_user.id:
-        flash('Это не твой пост!', 'danger')
-        return redirect(url_for('feed'))
-    # Удаляем картинку из Cloudinary
-    if post.image_url:
-        public_id = post.image_url.split('/')[-1].split('.')[0]
-        cloudinary.uploader.destroy(public_id)
-    db.session.delete(post)
-    db.session.commit()
-    flash('Пост удалён', 'info')
-    return redirect(url_for('feed'))
 
 @app.route('/profile/<username>')
 @login_required
@@ -340,9 +176,10 @@ def follow(username):
         if not Follow.query.filter_by(follower_id=current_user.id, followed_id=user.id).first():
             db.session.add(Follow(follower_id=current_user.id, followed_id=user.id))
             db.session.commit()
-            create_notification(user.id, 'follow', current_user.id)
-            flash(f'Вы подписались на {username}', 'success')
-    return redirect(request.referrer or url_for('feed'))
+            notif = Notification(user_id=user.id, type='follow', from_user_id=current_user.id)
+            db.session.add(notif)
+            db.session.commit()
+    return redirect(url_for('profile', username=username))
 
 @app.route('/unfollow/<username>')
 @login_required
@@ -352,26 +189,7 @@ def unfollow(username):
     if follow:
         db.session.delete(follow)
         db.session.commit()
-        flash(f'Вы отписались от {username}', 'info')
-    return redirect(request.referrer or url_for('feed'))
-
-@app.route('/profile/edit', methods=['GET', 'POST'])
-@login_required
-def edit_profile():
-    if request.method == 'POST':
-        current_user.bio = request.form['bio']
-        if 'avatar' in request.files:
-            file = request.files['avatar']
-            if file and allowed_file(file.filename):
-                if current_user.avatar and current_user.avatar.startswith('http'):
-                    # удаляем старую аватарку из Cloudinary
-                    pass
-                result = cloudinary.uploader.upload(file)
-                current_user.avatar = result['secure_url']
-        db.session.commit()
-        flash('Профиль обновлён!', 'success')
-        return redirect(url_for('profile', username=current_user.username))
-    return render_template('edit_profile.html')
+    return redirect(url_for('profile', username=username))
 
 @app.route('/search')
 @login_required
@@ -383,6 +201,7 @@ def search():
 @app.route('/messages')
 @login_required
 def messages():
+    # Диалоги
     dialogs = {}
     sent = Message.query.filter_by(sender_id=current_user.id).all()
     received = Message.query.filter_by(receiver_id=current_user.id).all()
@@ -415,12 +234,10 @@ def chat(username):
 def send_message(username):
     other = User.query.filter_by(username=username).first_or_404()
     content = request.form['content']
-    if content and other.public_key:
-        encrypted = encrypt_message(content, other.public_key)
-        msg = Message(sender_id=current_user.id, receiver_id=other.id, encrypted_content=encrypted)
+    if content:
+        msg = Message(sender_id=current_user.id, receiver_id=other.id, content=content)
         db.session.add(msg)
         db.session.commit()
-        flash('Сообщение отправлено (зашифровано)', 'success')
     return redirect(url_for('chat', username=username))
 
 @app.route('/notifications')
@@ -431,84 +248,22 @@ def notifications():
     db.session.commit()
     return render_template('notifications.html', notifications=notifs)
 
-@app.route('/manifest.json')
-def serve_manifest():
-    return send_from_directory('static', 'manifest.json')
-
-@app.route('/api/margo', methods=['POST'])
+@app.route('/profile/edit', methods=['GET', 'POST'])
 @login_required
-def api_margo():
-    data = request.get_json()
-    question = data.get('question', '')
-    username = current_user.username
-    
-    if question.lower().startswith('нарисуй'):
-        prompt = question[7:].strip()
-        if prompt:
-            return jsonify({'image': True, 'prompt': prompt})
-    
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    answer = loop.run_until_complete(ask_groq_for_web(question, username))
-    loop.close()
-    
-    return jsonify({'answer': answer, 'image': False})
+def edit_profile():
+    if request.method == 'POST':
+        current_user.bio = request.form['bio']
+        db.session.commit()
+        flash('Профиль обновлён!', 'success')
+        return redirect(url_for('profile', username=current_user.username))
+    return render_template('edit_profile.html')
 
-@app.route('/api/generate_image')
+@app.route('/nearby')
 @login_required
-def api_generate_image():
-    prompt = request.args.get('prompt', '')
-    if not prompt:
-        return '', 400
-    url = generate_image_url(prompt)
-    return redirect(url)
+def nearby():
+    return render_template('nearby.html')
 
-# ========== МАРГО ФУНКЦИИ ==========
-GROQ_KEY = os.environ.get("GROQ_KEY")
-
-async def ask_groq_for_web(question, username):
-    if not GROQ_KEY:
-        return "🤍 марGO пока не настроена"
-    url = "https://api.groq.com/openai/v1/chat/completions"
-    headers = {"Authorization": f"Bearer {GROQ_KEY}", "Content-Type": "application/json"}
-    payload = {
-        "model": "llama-3.3-70b-versatile",
-        "messages": [{"role": "user", "content": f"Пользователь {username} спрашивает: {question}"}],
-        "max_tokens": 300,
-        "temperature": 0.8
-    }
-    try:
-        async with aiohttp.ClientSession() as s:
-            async with s.post(url, headers=headers, json=payload, timeout=30) as r:
-                if r.status == 200:
-                    data = await r.json()
-                    return data['choices'][0]['message']['content']
-                return "Извини, не могу ответить 🤍"
-    except:
-        return "Ошибка подключения 🤍"
-
-def generate_image_url(prompt):
-    enhanced = f"masterpiece, best quality, highly detailed, beautiful, {prompt}"
-    seed = random.randint(1, 999999)
-    return f"https://image.pollinations.ai/prompt/{enhanced.replace(' ', '%20')}?width=1024&height=1024&nologo=true&seed={seed}"
-
-@app.route('/download_db')
-def download_db():
-    try:
-        db_path = 'go_world.db'
-        if os.path.exists(db_path):
-            with open(db_path, 'r', encoding='utf-8') as f:
-                data = f.read()
-            return data
-        else:
-            return "Файл базы данных не найден", 404
-    except Exception as e:
-        return f"Ошибка: {str(e)}", 500
-with app.app_context():
-    db.create_all()
-    print("✅ Таблицы созданы")
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
-    port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port, debug=False)
+    app.run(debug=True)
