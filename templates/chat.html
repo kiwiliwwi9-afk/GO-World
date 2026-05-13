@@ -1,40 +1,122 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Чат с {{ other.username }} — GO World</title>
-    <link rel="stylesheet" href="/static/style.css">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Чат с {{ other.name }} — GO World</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f5f5;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        .chat-header {
+            background: white;
+            padding: 16px;
+            border-bottom: 1px solid #e0e0e0;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            position: sticky;
+            top: 0;
+        }
+        .back-btn {
+            text-decoration: none;
+            font-size: 24px;
+            color: #333;
+        }
+        .avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #8a2be2, #00d2ff);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+        }
+        .messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .message {
+            max-width: 70%;
+            padding: 10px 14px;
+            border-radius: 20px;
+            font-size: 15px;
+        }
+        .message.sent {
+            background: #8a2be2;
+            color: white;
+            align-self: flex-end;
+            border-bottom-right-radius: 4px;
+        }
+        .message.received {
+            background: white;
+            color: #333;
+            align-self: flex-start;
+            border-bottom-left-radius: 4px;
+        }
+        .message-time {
+            font-size: 10px;
+            opacity: 0.7;
+            margin-top: 4px;
+        }
+        .input-area {
+            background: white;
+            padding: 12px;
+            display: flex;
+            gap: 12px;
+            border-top: 1px solid #e0e0e0;
+        }
+        .input-area input {
+            flex: 1;
+            padding: 12px;
+            border: 1px solid #e0e0e0;
+            border-radius: 30px;
+            font-size: 16px;
+        }
+        .input-area button {
+            background: #8a2be2;
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 30px;
+            cursor: pointer;
+        }
+    </style>
 </head>
 <body>
-    <nav class="navbar">
-        <div class="nav-brand">🌍 GO World</div>
-        <div class="nav-links">
-            <a href="/feed">Лента</a>
-            <a href="/messages">💬 Сообщения</a>
-            <a href="/notifications">🔔 Уведомления</a>
-            <a href="/profile/{{ current_user.username }}">Профиль</a>
-            <a href="/logout">Выйти</a>
+    <div class="chat-header">
+        <a href="/messages" class="back-btn">←</a>
+        <div class="avatar">{{ other.name[0].upper() }}</div>
+        <div><strong>{{ other.name }}</strong><br><span style="font-size: 12px; color: #8e8e8e;">@{{ other.username }}</span></div>
+    </div>
+
+    <div class="messages" id="messages">
+        {% for msg in messages %}
+        <div class="message {% if msg.sender_id == current_user.id %}sent{% else %}received{% endif %}">
+            {{ msg.content }}
+            <div class="message-time">{{ msg.created_at.strftime('%H:%M') }}</div>
         </div>
-    </nav>
-    
-    <div class="container">
-        <h2>💬 Чат с {{ other.username }}</h2>
-        
-        <div style="background: rgba(255,255,255,0.05); border-radius: 15px; padding: 20px; height: 400px; overflow-y: auto; margin-bottom: 20px;">
-            {% for msg in messages %}
-            <div style="display: flex; justify-content: {% if msg.sender_id == current_user.id %}flex-end{% else %}flex-start{% endif %}; margin-bottom: 15px;">
-                <div style="background: {% if msg.sender_id == current_user.id %}#8a2be2{% else %}#302b63{% endif %}; padding: 10px 15px; border-radius: 20px; max-width: 70%;">
-                    <div style="font-size: 14px;">{{ msg.content }}</div>
-                    <div style="font-size: 10px; opacity: 0.6; margin-top: 5px;">{{ msg.created_at.strftime('%H:%M') }}</div>
-                </div>
-            </div>
-            {% endfor %}
-        </div>
-        
-        <form method="POST" action="/send_message/{{ other.username }}" style="display: flex; gap: 10px;">
-            <input type="text" name="content" placeholder="Напиши сообщение..." style="flex: 1; padding: 12px; border-radius: 25px; border: none; outline: none;" required>
-            <button type="submit" style="background: #8a2be2; border: none; border-radius: 25px; padding: 12px 24px; color: white; cursor: pointer;">Отправить</button>
+        {% endfor %}
+    </div>
+
+    <div class="input-area">
+        <form method="POST" action="/send_message/{{ other.username }}" style="display: flex; gap: 12px; width: 100%;">
+            <input type="text" name="content" placeholder="Сообщение..." required>
+            <button type="submit">→</button>
         </form>
     </div>
+
+    <script>
+        const messagesDiv = document.getElementById('messages');
+        messagesDiv.scrollTop = messagesDiv.scrollHeight;
+    </script>
 </body>
 </html>
