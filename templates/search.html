@@ -2,45 +2,122 @@
 <html>
 <head>
     <title>Поиск — GO World</title>
-    <link rel="stylesheet" href="/static/style.css">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; padding-bottom: 70px; }
+        .navbar {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: white;
+            display: flex;
+            justify-content: space-around;
+            padding: 12px 16px;
+            border-top: 1px solid #e0e0e0;
+        }
+        .nav-item { text-align: center; text-decoration: none; color: #8e8e8e; font-size: 12px; }
+        .nav-icon { font-size: 24px; }
+        .container { max-width: 600px; margin: 0 auto; padding: 16px; }
+        .header { margin-bottom: 20px; }
+        .logo { font-size: 28px; font-weight: bold; background: linear-gradient(135deg, #8a2be2, #00d2ff); -webkit-background-clip: text; background-clip: text; color: transparent; }
+        .search-bar {
+            background: white;
+            border-radius: 30px;
+            padding: 12px 16px;
+            margin-bottom: 20px;
+            display: flex;
+            gap: 10px;
+        }
+        .search-bar input {
+            flex: 1;
+            border: none;
+            outline: none;
+            font-size: 16px;
+        }
+        .search-bar button {
+            background: #8a2be2;
+            color: white;
+            border: none;
+            padding: 8px 20px;
+            border-radius: 30px;
+            cursor: pointer;
+        }
+        .user-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: white;
+            padding: 12px;
+            border-radius: 12px;
+            margin-bottom: 8px;
+            text-decoration: none;
+            color: inherit;
+        }
+        .avatar {
+            width: 45px;
+            height: 45px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #8a2be2, #00d2ff);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+        }
+        .user-info { flex: 1; }
+        .user-name { font-weight: 600; }
+        .user-username { font-size: 12px; color: #8e8e8e; }
+    </style>
 </head>
 <body>
-    <nav class="navbar">
-        <div class="nav-brand">🌍 GO World</div>
-        <div class="nav-links">
-            <a href="/feed">Лента</a>
-            <a href="/messages">💬 Сообщения</a>
-            <a href="/notifications">🔔 Уведомления</a>
-            <a href="/profile/{{ current_user.username }}">Профиль</a>
-            <a href="/search">🔍 Найти</a>
-            <a href="/logout">Выйти</a>
-        </div>
-    </nav>
-    
     <div class="container">
-        <h2>🔍 Найти людей</h2>
-        
-        <form method="GET" style="margin-bottom: 30px;">
-            <input type="text" name="q" placeholder="Имя пользователя..." value="{{ query }}" style="width: 100%; padding: 12px; border-radius: 25px; border: none; outline: none; margin-bottom: 15px;">
-            <button type="submit" class="btn">Искать</button>
+        <div class="header">
+            <div class="logo">Поиск</div>
+        </div>
+
+        <form method="GET" class="search-bar">
+            <input type="text" name="q" placeholder="Люди, теги, посты..." value="{{ query }}">
+            <button type="submit">Найти</button>
         </form>
-        
-        {% if users %}
+
+        {% if query %}
+            <h3>Результаты поиска</h3>
             {% for user in users %}
-            <div style="background: rgba(255,255,255,0.1); border-radius: 15px; padding: 15px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center;">
-                <div>
-                    <strong>{{ user.username }}</strong>
-                    <div style="font-size: 12px; opacity: 0.7;">{{ user.bio[:50] or 'Пользователь GO World' }}</div>
+            <a href="/profile/{{ user.username }}" class="user-item">
+                <div class="avatar">{{ user.name[0].upper() }}</div>
+                <div class="user-info">
+                    <div class="user-name">{{ user.name }}</div>
+                    <div class="user-username">@{{ user.username }}</div>
                 </div>
-                <a href="/profile/{{ user.username }}" class="btn" style="padding: 8px 20px;">Перейти</a>
-            </div>
+            </a>
+            {% else %}
+            <p style="text-align: center; color: #8e8e8e;">Ничего не найдено</p>
             {% endfor %}
-        {% elif query %}
-            <p>Никого не найдено</p>
         {% else %}
-            <p>Введи имя пользователя для поиска</p>
+            <h3>Рекомендации для вас</h3>
+            <div class="user-item">
+                <div class="avatar">D</div>
+                <div class="user-info">
+                    <div class="user-name">diana_photo</div>
+                    <div class="user-username">Фотограф</div>
+                </div>
+            </div>
+            <div class="user-item">
+                <div class="avatar">I</div>
+                <div class="user-info">
+                    <div class="user-name">ivan.music</div>
+                    <div class="user-username">Музыкант</div>
+                </div>
+            </div>
         {% endif %}
+    </div>
+
+    <div class="navbar">
+        <a href="/feed" class="nav-item"><div class="nav-icon">🏠</div><span>Главная</span></a>
+        <a href="/search" class="nav-item" style="color: #8a2be2;"><div class="nav-icon">🔍</div><span>Поиск</span></a>
+        <a href="/messages" class="nav-item"><div class="nav-icon">💬</div><span>Сообщения</span></a>
+        <a href="/notifications" class="nav-item"><div class="nav-icon">🔔</div><span>Уведомления</span></a>
+        <a href="/profile/{{ current_user.username }}" class="nav-item"><div class="nav-icon">👤</div><span>Профиль</span></a>
     </div>
 </body>
 </html>
